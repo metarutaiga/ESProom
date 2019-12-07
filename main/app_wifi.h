@@ -13,5 +13,4 @@
 void app_wifi_initialise(void);
 void app_wifi_wait_connected();
 
-
 #endif
