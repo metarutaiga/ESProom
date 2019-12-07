@@ -1,4 +1,4 @@
-menu "Example Configuration"
+menu "Pulse Meter Configuration"
 
 config WIFI_SSID
     string "WiFi SSID"
@@ -13,5 +13,117 @@ config WIFI_PASSWORD
 		WiFi password (WPA or WPA2) for the example to use.
 
 		Can be left blank if the network has no security set.
+
+config AREA
+    string "Area"
+	default "1F"
+
+config FORM_ID
+    string "Google Forms ID"
+	default ""
+
+config FORM_AREA
+    string "Google Forms Area Entry"
+	default "entry.412114201="
+
+config FORM_TOTAL
+    string "Google Forms Total Entry"
+	default "entry.38663969="
+
+config FORM_HOUR_00
+    string "Google Forms 00 Entry"
+	default "entry.1098782889="
+
+config FORM_HOUR_01
+    string "Google Forms 01 Entry"
+	default "entry.1845064437="
+
+config FORM_HOUR_02
+    string "Google Forms 02 Entry"
+	default "entry.2071254287="
+
+config FORM_HOUR_03
+    string "Google Forms 03 Entry"
+	default "entry.924408024="
+
+config FORM_HOUR_04
+    string "Google Forms 04 Entry"
+	default "entry.595874478="
+
+config FORM_HOUR_05
+    string "Google Forms 05 Entry"
+	default "entry.1780735851="
+
+config FORM_HOUR_06
+    string "Google Forms 06 Entry"
+	default "entry.1739388391="
+
+config FORM_HOUR_07
+    string "Google Forms 07 Entry"
+	default "entry.1479027165="
+
+config FORM_HOUR_08
+    string "Google Forms 08 Entry"
+	default "entry.1439041239="
+
+config FORM_HOUR_09
+    string "Google Forms 09 Entry"
+	default "entry.651424720="
+
+config FORM_HOUR_10
+    string "Google Forms 10 Entry"
+	default "entry.1199490811="
+
+config FORM_HOUR_11
+    string "Google Forms 11 Entry"
+	default "entry.657816770="
+
+config FORM_HOUR_12
+    string "Google Forms 12 Entry"
+	default "entry.896875200="
+
+config FORM_HOUR_13
+    string "Google Forms 13 Entry"
+	default "entry.1636129122="
+
+config FORM_HOUR_14
+    string "Google Forms 14 Entry"
+	default "entry.1149296691="
+
+config FORM_HOUR_15
+    string "Google Forms 15 Entry"
+	default "entry.1748115813="
+
+config FORM_HOUR_16
+    string "Google Forms 16 Entry"
+	default "entry.591323480="
+
+config FORM_HOUR_17
+    string "Google Forms 17 Entry"
+	default "entry.1183923404="
+
+config FORM_HOUR_18
+    string "Google Forms 18 Entry"
+	default "entry.2147023006="
+
+config FORM_HOUR_19
+    string "Google Forms 19 Entry"
+	default "entry.285598793="
+
+config FORM_HOUR_20
+    string "Google Forms 20 Entry"
+	default "entry.263909919="
+
+config FORM_HOUR_21
+    string "Google Forms 21 Entry"
+	default "entry.920817175="
+
+config FORM_HOUR_22
+    string "Google Forms 22 Entry"
+	default "entry.1006325884="
+
+config FORM_HOUR_23
+    string "Google Forms 23 Entry"
+	default "entry.20100547="
 
 endmenu

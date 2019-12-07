@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
+
 #include "esp_log.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
@@ -18,7 +20,37 @@
 
 #include "esp_http_client.h"
 
-static const char *TAG = "HTTP_CLIENT";
+static int PULSE_PER_HOUR[24];
+static char HTTP_URL[1024];
+static const char * const CONFIG_FORM_HOUR[24] =
+{
+    CONFIG_FORM_HOUR_00,
+    CONFIG_FORM_HOUR_01,
+    CONFIG_FORM_HOUR_02,
+    CONFIG_FORM_HOUR_03,
+    CONFIG_FORM_HOUR_04,
+    CONFIG_FORM_HOUR_05,
+    CONFIG_FORM_HOUR_06,
+    CONFIG_FORM_HOUR_07,
+    CONFIG_FORM_HOUR_08,
+    CONFIG_FORM_HOUR_09,
+    CONFIG_FORM_HOUR_10,
+    CONFIG_FORM_HOUR_11,
+    CONFIG_FORM_HOUR_12,
+    CONFIG_FORM_HOUR_13,
+    CONFIG_FORM_HOUR_14,
+    CONFIG_FORM_HOUR_15,
+    CONFIG_FORM_HOUR_16,
+    CONFIG_FORM_HOUR_17,
+    CONFIG_FORM_HOUR_18,
+    CONFIG_FORM_HOUR_19,
+    CONFIG_FORM_HOUR_20,
+    CONFIG_FORM_HOUR_21,
+    CONFIG_FORM_HOUR_22,
+    CONFIG_FORM_HOUR_23,
+};
+
+static const char * const TAG = "HTTP_CLIENT";
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
@@ -52,14 +84,45 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-static void https()
+static void pulse_web(void *parameter)
 {
     esp_http_client_config_t config = {
-        .url = "https://www.howsmyssl.com",
+        .url = HTTP_URL,
         .event_handler = _http_event_handler,
     };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    esp_err_t err = esp_http_client_perform(client);
+    esp_http_client_handle_t client;
+    esp_err_t err;
+
+    char temp[64];
+    int total = 0;
+
+    // URL
+    strcpy(HTTP_URL, "https://docs.google.com/forms/d/e/");
+    strcat(HTTP_URL, CONFIG_FORM_ID);
+    strcat(HTTP_URL, "/formResponse?usp=pp_url&");
+
+    // Area
+    sprintf(temp, "%s%s&", CONFIG_FORM_AREA, CONFIG_AREA);
+    strcat(HTTP_URL, temp);
+   
+    // Pulse
+    for (int i = 0; i < 24; ++i) {
+        total += PULSE_PER_HOUR[i];
+        sprintf(temp, "%s%d&", CONFIG_FORM_HOUR[i], PULSE_PER_HOUR[i]);
+        strcat(HTTP_URL, temp);      
+    }
+
+    // Total
+    sprintf(temp, "%s%d&", CONFIG_FORM_TOTAL, total);
+    strcat(HTTP_URL, temp);
+
+    // Submit
+    strcat(HTTP_URL, "submit=Submit");
+    ESP_LOGI(TAG, "%s", HTTP_URL);
+
+    app_wifi_wait_connected();
+    client = esp_http_client_init(&config);
+    err = esp_http_client_perform(client);
     if (err == ESP_OK) {
         ESP_LOGI(TAG, "HTTPS Status = %d, content_length = %d",
                 esp_http_client_get_status_code(client),
@@ -68,15 +131,24 @@ static void https()
         ESP_LOGE(TAG, "Error perform http request %d", err);
     }
     esp_http_client_cleanup(client);
+    
+    vTaskDelete(NULL);
 }
 
-static void http_test_task(void *pvParameters)
+static void pulse_log(void *parameter)
 {
-    app_wifi_wait_connected();
-    ESP_LOGI(TAG, "Connected to AP, begin http example");
-    https();
-    ESP_LOGI(TAG, "Finish http example");
+    ESP_LOGI(TAG, "pulse : %d", PULSE_PER_HOUR[0]);
     vTaskDelete(NULL);
+}
+
+static void pulse(void *parameter)
+{
+    PULSE_PER_HOUR[0]++;
+    xTaskCreate(&pulse_log, "pulse_log", 8192, NULL, 5, NULL);
+
+    if (PULSE_PER_HOUR[0] == 10) {
+        xTaskCreate(&pulse_web, "pulse_web", 8192, NULL, 5, NULL);
+    }
 }
 
 void app_main()
@@ -89,5 +161,8 @@ void app_main()
     ESP_ERROR_CHECK(ret);
     app_wifi_initialise();
 
-    xTaskCreate(&http_test_task, "http_test_task", 8192, NULL, 5, NULL);
+    gpio_install_isr_service(0);
+    gpio_set_pull_mode(GPIO_NUM_2, GPIO_PULLUP_ONLY);
+    gpio_set_intr_type(GPIO_NUM_2, GPIO_INTR_NEGEDGE);
+    gpio_isr_handler_add(GPIO_NUM_2, pulse, NULL);
 }
