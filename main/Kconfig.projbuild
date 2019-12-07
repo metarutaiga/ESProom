@@ -1,4 +1,4 @@
-menu "Pulse Meter Configuration"
+menu "Watt-Hour Meter Configuration"
 
 config WIFI_SSID
     string "WiFi SSID"
@@ -13,6 +13,10 @@ config WIFI_PASSWORD
 		WiFi password (WPA or WPA2) for the example to use.
 
 		Can be left blank if the network has no security set.
+
+config IMP_KWH
+    int "Impressions per kWh"
+        default 800
 
 config AREA
     string "Area"

@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := pulse_meter
+PROJECT_NAME := watt_hour_meter
 
 include $(IDF_PATH)/make/project.mk
 
