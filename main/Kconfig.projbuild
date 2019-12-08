@@ -14,10 +14,6 @@ config WIFI_PASSWORD
 
 		Can be left blank if the network has no security set.
 
-config IMP_KWH
-    int "Impressions per kWh"
-        default 800
-
 config AREA
     string "Area"
 	default "1F"
