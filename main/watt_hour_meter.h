@@ -7,10 +7,9 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#ifndef _APP_WIFI_H_
-#define _APP_WIFI_H_
+#ifndef _WATT_HOUR_METER_H_
+#define _WATT_HOUR_METER_H_
 
-void app_wifi_initialise(void *parameter);
-void app_wifi_wait_connected();
+extern int PULSE_PER_HOUR[31][24];
 
 #endif

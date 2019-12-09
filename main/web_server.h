@@ -7,10 +7,10 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#ifndef _APP_WIFI_H_
-#define _APP_WIFI_H_
+#ifndef _WEB_SERVER_H_
+#define _WEB_SERVER_H_
 
-void app_wifi_initialise(void *parameter);
-void app_wifi_wait_connected();
+httpd_handle_t start_webserver(void);
+void stop_webserver(httpd_handle_t server);
 
 #endif

@@ -9,20 +9,24 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-#include "lwip/apps/sntp.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/gpio.h>
+#include <lwip/apps/sntp.h>
 
-#include "esp_log.h"
-#include "esp_system.h"
-#include "esp_timer.h"
-#include "nvs_flash.h"
+#include <esp_log.h>
+#include <esp_system.h>
+#include <esp_timer.h>
+#include <esp_http_client.h>
+#include <esp_http_server.h>
+#include <nvs_flash.h>
+
 #include "app_wifi.h"
+#include "watt_hour_meter.h"
 
-#include "esp_http_client.h"
+struct tm PULSE_TIME;
+int PULSE_PER_HOUR[31][24];
 
-static int PULSE_PER_HOUR[24];
 static char HTTP_URL[1024];
 static const char * const CONFIG_FORM_HOUR[24] =
 {
@@ -79,6 +83,8 @@ static void obtain_time(void)
         time(&now);
         localtime_r(&now, &timeinfo);
     }
+
+    PULSE_TIME = timeinfo;
 }
 
 static void sntp(void *parameter)
@@ -164,8 +170,8 @@ static void pulse_web(void *parameter)
    
     // Pulse
     for (int i = 0; i < 24; ++i) {
-        total += PULSE_PER_HOUR[i];
-        sprintf(temp, "%s%d&", CONFIG_FORM_HOUR[i], PULSE_PER_HOUR[i]);
+        total += PULSE_PER_HOUR[PULSE_TIME.tm_mday][i];
+        sprintf(temp, "%s%d&", CONFIG_FORM_HOUR[i], PULSE_PER_HOUR[PULSE_TIME.tm_mday][i]);
         strcat(HTTP_URL, temp);      
     }
 
@@ -200,7 +206,7 @@ static void pulse_log(void *parameter)
     time(&now);
     localtime_r(&now, &timeinfo);
 
-    ESP_LOGI(TAG, "pulse : %d (%d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_hour], timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    ESP_LOGI(TAG, "pulse : %d (%d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour], timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     vTaskDelete(NULL);
 }
 
@@ -222,7 +228,7 @@ static void pulse(void *parameter)
     if (timeinfo.tm_year < (2016 - 1900))
         return;
 
-    PULSE_PER_HOUR[timeinfo.tm_hour]++;
+    PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
     xTaskCreate(&pulse_log, "pulse_log", 8192, NULL, 5, NULL);
 
     if (last_hour == timeinfo.tm_hour)
@@ -231,8 +237,8 @@ static void pulse(void *parameter)
         xTaskCreate(&pulse_web, "pulse_web", 8192, NULL, 5, NULL);
         if (last_hour == 23) {
             for (int i = 0; i < 24; ++i)
-                PULSE_PER_HOUR[i] = 0;
-            PULSE_PER_HOUR[timeinfo.tm_hour]++;
+                PULSE_PER_HOUR[timeinfo.tm_mday][i] = 0;
+            PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
         }
     }
     last_hour = timeinfo.tm_hour;
@@ -240,13 +246,14 @@ static void pulse(void *parameter)
 
 void app_main()
 {
+    static httpd_handle_t server = NULL;
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
       ESP_ERROR_CHECK(nvs_flash_erase());
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    app_wifi_initialise();
+    app_wifi_initialise(&server);
 
     xTaskCreate(sntp, "sntp", 2048, NULL, 10, NULL);
 
