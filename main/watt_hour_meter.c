@@ -25,7 +25,7 @@
 #include "watt_hour_meter.h"
 
 struct tm PULSE_TIME;
-int PULSE_PER_HOUR[31][24];
+int PULSE_PER_HOUR[32][24];
 
 static char HTTP_URL[1024];
 static const char * const CONFIG_FORM_HOUR[24] =
@@ -89,11 +89,11 @@ static void obtain_time(void)
 
 static void sntp(void *parameter)
 {
-    time_t now;
-    struct tm timeinfo;
-    char strftime_buf[64];
-
     while (1) {
+
+        time_t now = 0;
+        struct tm timeinfo = { 0 };
+        char strftime_buf[64];
 
         // update 'now' variable with current time
         time(&now);
@@ -159,6 +159,9 @@ static void pulse_web(void *parameter)
     char temp[64];
     int total = 0;
 
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+
     // URL
     strcpy(HTTP_URL, "https://docs.google.com/forms/d/e/");
     strcat(HTTP_URL, CONFIG_FORM_ID);
@@ -194,6 +197,11 @@ static void pulse_web(void *parameter)
         ESP_LOGE(TAG, "Error perform http request %d", err);
     }
     esp_http_client_cleanup(client);
+
+    // Time
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    PULSE_TIME = timeinfo;
     
     vTaskDelete(NULL);
 }
@@ -206,7 +214,7 @@ static void pulse_log(void *parameter)
     time(&now);
     localtime_r(&now, &timeinfo);
 
-    ESP_LOGI(TAG, "pulse : %d (%d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour], timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    ESP_LOGI(TAG, "pulse : %d (%d.%d.%d %d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     vTaskDelete(NULL);
 }
 

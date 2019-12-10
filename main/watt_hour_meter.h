@@ -10,6 +10,6 @@
 #ifndef _WATT_HOUR_METER_H_
 #define _WATT_HOUR_METER_H_
 
-extern int PULSE_PER_HOUR[31][24];
+extern int PULSE_PER_HOUR[32][24];
 
 #endif
