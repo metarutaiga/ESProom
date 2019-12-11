@@ -36,6 +36,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
                     "<html>"
                     "<head>"
                     "<title>%s : Watt-Hour Meter</title>"
+                    "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.0/Chart.min.js\"></script>"
                     "</head>"
                     "<body>", CONFIG_AREA);
 
@@ -45,14 +46,40 @@ esp_err_t home_get_handler(httpd_req_t *req)
     // Date Time
     html += sprintf(html, "<p>%d.%d.%d %d:%d:%d</p>", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 
+    // Chart
+    html += sprintf(html, "%s", "<canvas id=\"meter\" height=\"50%\"></canvas>");
+    html += sprintf(html, "<script>");
+    html += sprintf(html, "var ctx = document.getElementById('meter');");
+    html += sprintf(html, "var myChart = new Chart(ctx, {");
+    html += sprintf(html,   "type: 'line',");
+    html += sprintf(html,   "data: {");
+    html += sprintf(html,     "labels: [");
+    for (int hour = 0; hour < 24; ++hour) {
+        html += sprintf(html, "%s'%d'", hour ? "," : "", hour);
+    }
+    html += sprintf(html,     "],");
+    html += sprintf(html,     "datasets: [{");
+    html += sprintf(html,       "label: 'pulse',");
+    html += sprintf(html,       "data: [");
+    for (int hour = 0; hour < 24; ++hour) {
+        html += sprintf(html, "%s%d", hour ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour]);
+    }
+    html += sprintf(html,       "],");
+    html += sprintf(html,       "borderWidth: 1");
+    html += sprintf(html,     "}]");
+    html += sprintf(html,   "}");
+    html += sprintf(html, "});");
+    html += sprintf(html, "</script>");
+
     // Table
-    html += sprintf(html, "%s", "<table style=\"width:100%\">");
+    html += sprintf(html, "%s", "<table style=\"width:100%\" border='1'>");
     html += sprintf(html, "<tr>");
     html += sprintf(html, "<th>Day</th>");
     for (int hour = 0; hour < 24; ++hour) {
         html += sprintf(html, "<th>%02d</th>", hour);
     }
     html += sprintf(html, "<th>Total</th>");
+    html += sprintf(html, "<th>kWh</th>");
     html += sprintf(html, "</tr>");
     for (int day = 1; day < 32; ++day) {
         int total = 0;
@@ -64,6 +91,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
             total += PULSE_PER_HOUR[day][hour];
         }
         html += sprintf(html, "<th>%d</th>", total);
+        html += sprintf(html, "<th>%.2f</th>", total / (float)CONFIG_IMP_KWH);
         html += sprintf(html, "</tr>");
     }
     html += sprintf(html, "</table>");

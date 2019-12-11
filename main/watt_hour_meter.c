@@ -252,6 +252,19 @@ static void pulse(void *parameter)
     last_hour = timeinfo.tm_hour;
 }
 
+static void debug(void *parameter)
+{
+    static int64_t last_time = 0;
+    int64_t pulse_time = esp_timer_get_time();
+    int64_t delta_time = pulse_time - last_time;
+
+    if (delta_time < 1000 * 1000)
+       return;
+    last_time = pulse_time;
+
+    xTaskCreate(&pulse_web, "pulse_web", 8192, NULL, 5, NULL);
+}
+
 void app_main()
 {
     static httpd_handle_t server = NULL;
@@ -265,9 +278,13 @@ void app_main()
 
     xTaskCreate(sntp, "sntp", 2048, NULL, 10, NULL);
 
+    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_INPUT);
+    gpio_set_intr_type(GPIO_NUM_0, GPIO_INTR_NEGEDGE);
     gpio_set_intr_type(GPIO_NUM_2, GPIO_INTR_NEGEDGE);
+    gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
     gpio_set_pull_mode(GPIO_NUM_2, GPIO_PULLUP_ONLY);
     gpio_install_isr_service(0);
+    gpio_isr_handler_add(GPIO_NUM_0, debug, NULL);
     gpio_isr_handler_add(GPIO_NUM_2, pulse, NULL);
 }
