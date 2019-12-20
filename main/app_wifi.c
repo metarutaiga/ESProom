@@ -17,7 +17,7 @@
 #include "web_server.h"
 #include "app_wifi.h"
 
-static const char *TAG = "WIFI";
+static const char * const TAG = "WIFI";
 
 /* FreeRTOS event group to signal when we are connected & ready to make a request */
 static EventGroupHandle_t wifi_event_group;
@@ -38,16 +38,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
             ESP_ERROR_CHECK(esp_wifi_connect());
             break;
-        case SYSTEM_EVENT_STA_GOT_IP:
-            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
-            ESP_LOGI(TAG, "Got IP: '%s'", ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
-
-            /* Start the web server */
-            if (*server == NULL) {
-                *server = start_webserver();
-            }
-
-            xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
+        case SYSTEM_EVENT_STA_STOP:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_STOP");
+            break;
+        case SYSTEM_EVENT_STA_CONNECTED:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
@@ -59,14 +54,29 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             ESP_ERROR_CHECK(esp_wifi_connect());
 
             /* Stop the web server */
-            if (*server) {
-                stop_webserver(*server);
-                *server = NULL;
-            }
+            //if (*server) {
+            //    stop_webserver(*server);
+            //    *server = NULL;
+            //}
 
             xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             break;
+        case SYSTEM_EVENT_STA_GOT_IP:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
+            ESP_LOGI(TAG, "Got IP: '%s'", ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
+
+            /* Start the web server */
+            if (*server == NULL) {
+                *server = start_webserver();
+            }
+
+            xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
+            break;
+        case SYSTEM_EVENT_STA_LOST_IP:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_LOST_IP");
+            break;
         default:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_UNKNOWN (%d)", event->event_id);
             break;
     }
     return ESP_OK;

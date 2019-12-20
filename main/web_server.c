@@ -16,16 +16,19 @@
 #include "watt_hour_meter.h"
 #include "web_server.h"
 
-static char HTML[16384];
-
-static const char *TAG = "WEB-SERVER";
+static const char * const TAG = "WEB-SERVER";
 
 /* An HTTP GET handler */
 esp_err_t home_get_handler(httpd_req_t *req)
 {
+    char *HTML = malloc(16384);
     char *html = HTML;
+
     time_t now = 0;
     struct tm timeinfo = { 0 };
+
+    if (HTML == NULL)
+        return ESP_OK;
 
     time(&now);
     localtime_r(&now, &timeinfo);
@@ -96,6 +99,9 @@ esp_err_t home_get_handler(httpd_req_t *req)
     }
     html += sprintf(html, "</table>");
 
+    // Build
+    html += sprintf(html, "<p>Build : %s %s</p>", __DATE__, __TIME__);
+
     // Tail
     html += sprintf(html,
                     "</body>"
@@ -103,6 +109,8 @@ esp_err_t home_get_handler(httpd_req_t *req)
 
     // Send response
     httpd_resp_send(req, HTML, strlen(HTML));
+
+    free(HTML);
 
     return ESP_OK;
 }
