@@ -14,7 +14,6 @@
 #include <esp_http_server.h>
 #include <freertos/event_groups.h>
 
-#include "web_server.h"
 #include "app_wifi.h"
 
 static const char * const TAG = "WIFI";
@@ -29,7 +28,6 @@ const int CONNECTED_BIT = BIT0;
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
-    httpd_handle_t *server = (httpd_handle_t *) ctx;
     /* For accessing reason codes in case of disconnection */
     system_event_info_t *info = &event->event_info;
 
@@ -53,22 +51,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             }
             ESP_ERROR_CHECK(esp_wifi_connect());
 
-            /* Stop the web server */
-            //if (*server) {
-            //    stop_webserver(*server);
-            //    *server = NULL;
-            //}
-
             xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             break;
         case SYSTEM_EVENT_STA_GOT_IP:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
             ESP_LOGI(TAG, "Got IP: '%s'", ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
-
-            /* Start the web server */
-            if (*server == NULL) {
-                *server = start_webserver();
-            }
 
             xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
             break;
@@ -82,11 +69,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-void app_wifi_initialise(void *parameter)
+void app_wifi_initialise()
 {
     tcpip_adapter_init();
     wifi_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, parameter));
+    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));

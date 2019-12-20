@@ -22,6 +22,7 @@
 #include <nvs_flash.h>
 
 #include "app_wifi.h"
+#include "web_server.h"
 #include "watt_hour_meter.h"
 
 struct tm PULSE_TIME;
@@ -109,6 +110,20 @@ static void sntp(void *parameter)
             ESP_LOGI(TAG, "The current date/time in Taipei is: %s", strftime_buf);
             break;
         }
+    }
+
+    vTaskDelete(NULL);
+}
+
+static void web_server(void *parameter)
+{
+    httpd_handle_t *server = (httpd_handle_t *) parameter;
+
+    app_wifi_wait_connected();
+
+    /* Start the web server */
+    if (*server == NULL) {
+        *server = start_webserver();
     }
 
     vTaskDelete(NULL);
@@ -277,9 +292,10 @@ void app_main()
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    app_wifi_initialise(&server);
+    app_wifi_initialise();
 
     xTaskCreate(sntp, "sntp", 2048, NULL, 10, NULL);
+    xTaskCreate(web_server, "web_server", 2048, &server, 10, NULL);
 
     gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_INPUT);
