@@ -19,6 +19,7 @@
 #include <esp_timer.h>
 #include <esp_http_client.h>
 #include <esp_http_server.h>
+#include <esp_wifi.h>
 #include <nvs_flash.h>
 
 #include "app_wifi.h"
@@ -27,6 +28,9 @@
 
 struct tm PULSE_TIME;
 unsigned short PULSE_PER_HOUR[32][24];
+unsigned char AREA_NAME[16];
+unsigned char LOG_BUFFER[8][128];
+unsigned char LOG_INDEX;
 
 static const char * const CONFIG_FORM_HOUR[24] =
 {
@@ -57,6 +61,34 @@ static const char * const CONFIG_FORM_HOUR[24] =
 };
 
 static const char * const TAG = "WATT-HOUR METER";
+
+static putchar_like_t orig_putchar = NULL;
+
+static int watt_putchar(int ch)
+{
+    static int line = 0;
+    static int color = 0;
+
+    if (ch == '\n') {
+        LOG_INDEX = (LOG_INDEX + 1) % 8;
+        line = 0;
+    }
+    else if (ch == '\033') {
+        color = 1;
+    }
+    else if (ch == 'm' && color == 1) {
+        color = 0;
+    }
+    else if (line < (sizeof(LOG_BUFFER[LOG_INDEX]) - 1) && color == 0) {
+        LOG_BUFFER[LOG_INDEX][line++] = ch;
+        LOG_BUFFER[LOG_INDEX][line] = 0;
+    }
+
+    if (orig_putchar)
+        return orig_putchar(ch);
+
+    return ESP_OK;
+}
 
 static void initialize_sntp(void)
 {
@@ -89,7 +121,7 @@ static void obtain_time(void)
 
 static void sntp(void *parameter)
 {
-    while (1) {
+    for (;;) {
 
         time_t now = 0;
         struct tm timeinfo = { 0 };
@@ -186,7 +218,7 @@ static void pulse_web(void *parameter)
     http_url += sprintf(http_url, "/formResponse?usp=pp_url&");
 
     // Area
-    http_url += sprintf(http_url, "%s%s&", CONFIG_FORM_AREA, CONFIG_AREA);
+    http_url += sprintf(http_url, "%s%s&", CONFIG_FORM_AREA, AREA_NAME);
    
     // Pulse
     for (int i = 0; i < 24; ++i) {
@@ -224,6 +256,7 @@ static void pulse_web(void *parameter)
     vTaskDelete(NULL);
 }
 
+#if WATT_DEBUG
 static void pulse_log(void *parameter)
 {
     time_t now;
@@ -235,6 +268,7 @@ static void pulse_log(void *parameter)
     ESP_LOGI(TAG, "pulse : %d (%d.%d.%d %d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     vTaskDelete(NULL);
 }
+#endif
 
 static void pulse(void *parameter)
 {
@@ -255,7 +289,9 @@ static void pulse(void *parameter)
         return;
 
     PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
+#if WATT_DEBUG
     xTaskCreate(&pulse_log, "pulse_log", 2048, NULL, 5, NULL);
+#endif
 
     if (last_hour == timeinfo.tm_hour)
         return;
@@ -286,6 +322,14 @@ static void debug(void *parameter)
 void app_main()
 {
     static httpd_handle_t server = NULL;
+    uint8_t mac[6] = { 0 };
+    char hostname[16];
+    char* config_area = NULL;
+
+    // Set putchar
+    orig_putchar = esp_log_set_putchar(watt_putchar);
+
+    // Initialize
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -294,6 +338,33 @@ void app_main()
     ESP_ERROR_CHECK(ret);
     app_wifi_initialise();
 
+    // Set Hostname
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    sprintf(hostname, "WATT_%02X%02X%02X", mac[3], mac[4], mac[5]);    
+    tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
+
+    // Set Area
+    config_area = strstr(CONFIG_AREA, hostname + sizeof("WATT_") - 1);
+    if (config_area != NULL) {
+        config_area = strchr(config_area, '=');
+        if (config_area != NULL) {
+            config_area++;
+        }
+    }
+    if (config_area == NULL) {
+        config_area = CONFIG_AREA;
+    }
+    for (int i = 0; i < sizeof(AREA_NAME); ++i) {
+        char c = config_area[i];
+        if (c == ';')
+            c = 0;
+        AREA_NAME[i] = c;
+        if (c == 0)
+            break;
+    }
+    AREA_NAME[sizeof(AREA_NAME) - 1] = 0;
+
+    // Services
     xTaskCreate(sntp, "sntp", 2048, NULL, 10, NULL);
     xTaskCreate(web_server, "web_server", 2048, &server, 10, NULL);
 

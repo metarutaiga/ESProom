@@ -11,5 +11,8 @@
 #define _WATT_HOUR_METER_H_
 
 extern unsigned short PULSE_PER_HOUR[32][24];
+extern unsigned char AREA_NAME[16];
+extern unsigned char LOG_BUFFER[8][128];
+extern unsigned char LOG_INDEX;
 
 #endif

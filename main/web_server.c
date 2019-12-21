@@ -41,10 +41,10 @@ esp_err_t home_get_handler(httpd_req_t *req)
                     "<title>%s : Watt-Hour Meter</title>"
                     "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.0/Chart.min.js\"></script>"
                     "</head>"
-                    "<body>", CONFIG_AREA);
+                    "<body>", AREA_NAME);
 
     // Area
-    html += sprintf(html, "<h1>%s</h1>", CONFIG_AREA);
+    html += sprintf(html, "<h1>%s</h1>", AREA_NAME);
 
     // Date Time
     html += sprintf(html, "<p>%d.%d.%d %d:%d:%d</p>", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
@@ -102,6 +102,13 @@ esp_err_t home_get_handler(httpd_req_t *req)
     // Build
     html += sprintf(html, "<p>Build : %s %s</p>", __DATE__, __TIME__);
 
+    // Log
+    html += sprintf(html, "<p>");
+    for (int i = 0; i < 8; ++i) {
+        html += sprintf(html, "Log : %s<br>", LOG_BUFFER[(LOG_INDEX + i) % 8]);
+    }
+    html += sprintf(html, "</p>");
+
     // Tail
     html += sprintf(html,
                     "</body>"
@@ -144,4 +151,3 @@ void stop_webserver(httpd_handle_t server)
     // Stop the httpd server
     httpd_stop(server);
 }
-
