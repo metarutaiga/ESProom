@@ -10,7 +10,11 @@
 #ifndef _APP_WIFI_H_
 #define _APP_WIFI_H_
 
+void app_wifi_prepare();
 void app_wifi_initialise();
+void app_wifi_shutdown();
 void app_wifi_wait_connected();
+void app_wifi_loop();
+void app_wifi_restart();
 
 #endif

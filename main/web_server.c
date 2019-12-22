@@ -12,6 +12,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_http_server.h>
+#include <esp_spi_flash.h>
 
 #include "watt_hour_meter.h"
 #include "web_server.h"
@@ -26,6 +27,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
 
     time_t now = 0;
     struct tm timeinfo = { 0 };
+    esp_chip_info_t info;
 
     if (HTML == NULL)
         return ESP_OK;
@@ -107,6 +109,25 @@ esp_err_t home_get_handler(httpd_req_t *req)
     for (int i = 0; i < 8; ++i) {
         html += sprintf(html, "Log : %s<br>", LOG_BUFFER[(LOG_INDEX + i) % 8]);
     }
+    html += sprintf(html, "</p>");
+
+    // Heap
+    html += sprintf(html, "<p>Free Heap Size : %u</p>", esp_get_free_heap_size());
+
+    // Chip
+    esp_chip_info(&info);
+    html += sprintf(html, "<p>");
+    html += sprintf(html, "Model : %s<br>", info.model == CHIP_ESP8266 ? "ESP8266" : info.model == CHIP_ESP32 ? "ESP32" : "Unknown");
+    html += sprintf(html, "Feature : %s%s%s<br>",
+                    info.features & CHIP_FEATURE_WIFI_BGN ? "802.11bgn" : "",
+                    info.features & CHIP_FEATURE_BLE ? "/BLE" : "",
+                    info.features & CHIP_FEATURE_BT ? "/BT" : "");
+    html += sprintf(html, "Cores : %d<br>", info.cores);
+    html += sprintf(html, "Revision : %d<br>", info.revision);
+    html += sprintf(html, "Flash : %dMB (%s)<br>",
+                    spi_flash_get_chip_size() / (1024 * 1024),
+                    info.features & CHIP_FEATURE_EMB_FLASH ? "Embedded-Flash" : "External-Flash");
+    html += sprintf(html, "IDF Version : %s<br>", esp_get_idf_version());
     html += sprintf(html, "</p>");
 
     // Tail

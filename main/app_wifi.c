@@ -26,21 +26,74 @@ static EventGroupHandle_t wifi_event_group;
    to the AP with an IP? */
 const int CONNECTED_BIT = BIT0;
 
+static int wifi_restart = 0;
+static int wifi_failed_count = 0;
+
+static void app_wifi_scan_all()
+{
+    uint16_t ap_count = 0;
+    wifi_ap_record_t *ap_list;
+
+    esp_wifi_scan_get_ap_num(&ap_count);	
+    if (ap_count <= 0)
+        return; 
+
+    ap_list = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
+    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&ap_count, ap_list));	
+
+    ESP_LOGI(TAG, "======================================================================");
+    ESP_LOGI(TAG, "             SSID             |    RSSI    |           AUTH           ");
+    ESP_LOGI(TAG, "======================================================================");
+    for (uint16_t i = 0; i < ap_count; i++) {
+	char *authmode;
+        switch (ap_list[i].authmode) {
+            case WIFI_AUTH_OPEN:
+                authmode = "WIFI_AUTH_OPEN";
+	        break;
+	    case WIFI_AUTH_WEP:
+                authmode = "WIFI_AUTH_WEP";
+                break;        
+            case WIFI_AUTH_WPA_PSK:
+                authmode = "WIFI_AUTH_WPA_PSK";
+                break;           
+            case WIFI_AUTH_WPA2_PSK:
+                authmode = "WIFI_AUTH_WPA2_PSK";
+                break;           
+            case WIFI_AUTH_WPA_WPA2_PSK:
+                authmode = "WIFI_AUTH_WPA_WPA2_PSK";
+                break;
+            default:
+                authmode = "Unknown";
+                break;
+    	}
+        ESP_LOGI(TAG, "%26.26s    |    % 4d    |    %22.22s", ap_list[i].ssid, ap_list[i].rssi, authmode);
+    }
+    free(ap_list);
+}
+
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
+    uint8_t mac[6];
+    char hostname[16];
+
     /* For accessing reason codes in case of disconnection */
     system_event_info_t *info = &event->event_info;
 
     switch (event->event_id) {
         case SYSTEM_EVENT_STA_START:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
-            ESP_ERROR_CHECK(esp_wifi_connect());
+
+            esp_wifi_get_mac(WIFI_IF_STA, mac);
+            sprintf(hostname, "ESP_%02X%02X%02X", mac[3], mac[4], mac[5]);    
+            tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
+            ESP_LOGI(TAG, "Hostname : %s", hostname);
             break;
         case SYSTEM_EVENT_STA_STOP:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_STOP");
             break;
         case SYSTEM_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
+            wifi_failed_count = 0;
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
@@ -50,6 +103,14 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
                 esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
             }
             ESP_ERROR_CHECK(esp_wifi_connect());
+
+            wifi_failed_count++;
+            if (wifi_failed_count == 10) {
+                app_wifi_restart();
+            }
+            if (wifi_failed_count >= 20) {
+                esp_restart();
+            }
 
             xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             break;
@@ -62,6 +123,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         case SYSTEM_EVENT_STA_LOST_IP:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_LOST_IP");
             break;
+        case SYSTEM_EVENT_SCAN_DONE:
+            ESP_LOGI(TAG, "SYSTEM_EVENT_SCAN_DONE");
+            app_wifi_scan_all();
+            ESP_ERROR_CHECK(esp_wifi_connect());
+            break;
         default:
             ESP_LOGI(TAG, "SYSTEM_EVENT_UNKNOWN (%d)", event->event_id);
             break;
@@ -69,11 +135,25 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-void app_wifi_initialise()
+void app_wifi_prepare()
 {
     tcpip_adapter_init();
     wifi_event_group = xEventGroupCreate();
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
+}
+
+void app_wifi_initialise()
+{
+    wifi_scan_config_t scan_config = {
+        .ssid = 0,
+        .bssid = 0,
+        .channel = 0,
+        .show_hidden = 1,
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time.active.min = 120,
+        .scan_time.active.max = 150,
+    };
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -87,9 +167,34 @@ void app_wifi_initialise()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
+}
+
+void app_wifi_shutdown()
+{
+    ESP_LOGI(TAG, "Shutdown WiFi...");
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_ERROR_CHECK(esp_wifi_deinit());
 }
 
 void app_wifi_wait_connected()
 {
     xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+}
+
+void app_wifi_loop()
+{
+    for (;;) {
+        if (wifi_restart) {
+            wifi_restart = 0;
+            app_wifi_shutdown();
+            app_wifi_initialise();
+        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void app_wifi_restart()
+{
+    wifi_restart = 1;
 }

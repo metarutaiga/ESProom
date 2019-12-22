@@ -332,10 +332,11 @@ void app_main()
     // Initialize
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    app_wifi_prepare();
     app_wifi_initialise();
 
     // Set Hostname
@@ -377,4 +378,7 @@ void app_main()
     gpio_install_isr_service(0);
     gpio_isr_handler_add(GPIO_NUM_0, debug, NULL);
     gpio_isr_handler_add(GPIO_NUM_2, pulse, NULL);
+
+    // loop
+    app_wifi_loop();
 }
