@@ -14,6 +14,7 @@
 #include <esp_http_server.h>
 #include <esp_spi_flash.h>
 
+#include "app_wifi.h"
 #include "watt_hour_meter.h"
 #include "web_server.h"
 
@@ -28,6 +29,11 @@ esp_err_t home_get_handler(httpd_req_t *req)
     time_t now = 0;
     struct tm timeinfo = { 0 };
     esp_chip_info_t info;
+    uint8_t protocol_bitmap;
+    wifi_bandwidth_t bw;
+    uint8_t primary;
+    wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+    wifi_country_t country;
 
     if (HTML == NULL)
         return ESP_OK;
@@ -42,6 +48,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
                     "<head>"
                     "<title>%s : Watt-Hour Meter</title>"
                     "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.0/Chart.min.js\"></script>"
+                    "<meta http-equiv=\"refresh\" content=\"60\"/>"
                     "</head>"
                     "<body>", AREA_NAME);
 
@@ -128,6 +135,33 @@ esp_err_t home_get_handler(httpd_req_t *req)
                     spi_flash_get_chip_size() / (1024 * 1024),
                     info.features & CHIP_FEATURE_EMB_FLASH ? "Embedded-Flash" : "External-Flash");
     html += sprintf(html, "IDF Version : %s<br>", esp_get_idf_version());
+    html += sprintf(html, "</p>");
+
+    // Wifi
+    esp_wifi_get_protocol(ESP_IF_WIFI_STA, &protocol_bitmap);
+    esp_wifi_get_bandwidth(ESP_IF_WIFI_STA, &bw);
+    esp_wifi_get_channel(&primary, &second);
+    esp_wifi_get_country(&country);
+    html += sprintf(html, "<p>");
+    html += sprintf(html, "Protocol : 802.11%s%s%s<br>", 
+                    (protocol_bitmap & WIFI_PROTOCAL_11B) ? "b" : "",
+                    (protocol_bitmap & WIFI_PROTOCAL_11G) ? "g" : "",
+                    (protocol_bitmap & WIFI_PROTOCAL_11N) ? "n" : "");
+    html += sprintf(html, "Bandwidth : %s<br>", 
+                    (bw == WIFI_BW_HT20) ? "HT20" :
+                    (bw == WIFI_BW_HT40) ? "HT40" : "Unknown");
+    html += sprintf(html, "Channel : %d%s<br>", primary,
+                    (second == WIFI_SECOND_CHAN_NONE) ? "" :
+                    (second == WIFI_SECOND_CHAN_ABOVE) ? " (Above)" :
+                    (second == WIFI_SECOND_CHAN_BELOW) ? " (Below)" : " (Unknown)");
+    html += sprintf(html, "Country Code : %s<br>", country.cc);
+    html += sprintf(html, "Country Start Channel : %d<br>", country.schan);
+    html += sprintf(html, "Country Totol Channel : %d<br>", country.nchan);
+    html += sprintf(html, "Country Max TX Power : %d<br>", country.max_tx_power);
+    html += sprintf(html, "Country Policy : %s<br>", 
+                    (country.policy == WIFI_COUNTRY_POLICY_AUTO) ? "Auto" :
+                    (country.policy == WIFI_COUNTRY_POLICY_MANUAL) ? "Manual" : "Unknown");
+    html += sprintf(html, "Restart Count : %d<br>", app_wifi_restart_count());
     html += sprintf(html, "</p>");
 
     // Tail

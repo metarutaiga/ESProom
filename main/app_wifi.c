@@ -26,8 +26,11 @@ static EventGroupHandle_t wifi_event_group;
    to the AP with an IP? */
 const int CONNECTED_BIT = BIT0;
 
+static int wifi_start = 0;
+static int wifi_connected = 0;
 static int wifi_restart = 0;
 static int wifi_failed_count = 0;
+static int wifi_restart_count = 0;
 
 static void app_wifi_scan_all()
 {
@@ -73,8 +76,10 @@ static void app_wifi_scan_all()
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
+#if 0
     uint8_t mac[6];
     char hostname[16];
+#endif
 
     /* For accessing reason codes in case of disconnection */
     system_event_info_t *info = &event->event_info;
@@ -83,16 +88,25 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         case SYSTEM_EVENT_STA_START:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
 
+            esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
+#if 0
             esp_wifi_get_mac(WIFI_IF_STA, mac);
             sprintf(hostname, "ESP_%02X%02X%02X", mac[3], mac[4], mac[5]);    
             tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
             ESP_LOGI(TAG, "Hostname : %s", hostname);
+#endif
+
+            wifi_start = 1;
             break;
         case SYSTEM_EVENT_STA_STOP:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_STOP");
+
+            wifi_start = 0;
             break;
         case SYSTEM_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
+
+            wifi_connected = 1;
             wifi_failed_count = 0;
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -102,17 +116,18 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
                 /*Switch to 802.11 bgn mode */
                 esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
             }
-            ESP_ERROR_CHECK(esp_wifi_connect());
 
+            esp_wifi_connect();
+            xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
+
+            wifi_connected = 0;
             wifi_failed_count++;
-            if (wifi_failed_count == 10) {
+            if ((wifi_failed_count % 10) == 0) {
                 app_wifi_restart();
             }
-            if (wifi_failed_count >= 20) {
+            if ((wifi_failed_count / 10) >= 5) {
                 esp_restart();
             }
-
-            xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
             break;
         case SYSTEM_EVENT_STA_GOT_IP:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
@@ -125,8 +140,9 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             break;
         case SYSTEM_EVENT_SCAN_DONE:
             ESP_LOGI(TAG, "SYSTEM_EVENT_SCAN_DONE");
+
             app_wifi_scan_all();
-            ESP_ERROR_CHECK(esp_wifi_connect());
+            esp_wifi_connect();
             break;
         default:
             ESP_LOGI(TAG, "SYSTEM_EVENT_UNKNOWN (%d)", event->event_id);
@@ -144,6 +160,12 @@ void app_wifi_prepare()
 
 void app_wifi_initialise()
 {
+    wifi_country_t country = {
+        .cc = "JP",
+        .schan = 1,
+        .nchan = 14,
+        .policy = WIFI_COUNTRY_POLICY_AUTO,
+    };
     wifi_scan_config_t scan_config = {
         .ssid = 0,
         .bssid = 0,
@@ -156,6 +178,7 @@ void app_wifi_initialise()
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_country(&country));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     wifi_config_t wifi_config = {
         .sta = {
@@ -166,6 +189,7 @@ void app_wifi_initialise()
     ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_STA, WIFI_BW_HT40));
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
 }
@@ -173,7 +197,14 @@ void app_wifi_initialise()
 void app_wifi_shutdown()
 {
     ESP_LOGI(TAG, "Shutdown WiFi...");
+    ESP_ERROR_CHECK(esp_wifi_disconnect());
+    while (wifi_connected == 1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
     ESP_ERROR_CHECK(esp_wifi_stop());
+    while (wifi_start == 1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
     ESP_ERROR_CHECK(esp_wifi_deinit());
 }
 
@@ -185,7 +216,7 @@ void app_wifi_wait_connected()
 void app_wifi_loop()
 {
     for (;;) {
-        if (wifi_restart) {
+        if (wifi_restart == 1) {
             wifi_restart = 0;
             app_wifi_shutdown();
             app_wifi_initialise();
@@ -197,4 +228,10 @@ void app_wifi_loop()
 void app_wifi_restart()
 {
     wifi_restart = 1;
+    wifi_restart_count++;
+}
+
+int app_wifi_restart_count()
+{
+    return wifi_restart_count;
 }

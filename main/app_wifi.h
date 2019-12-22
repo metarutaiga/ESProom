@@ -16,5 +16,6 @@ void app_wifi_shutdown();
 void app_wifi_wait_connected();
 void app_wifi_loop();
 void app_wifi_restart();
+int app_wifi_restart_count();
 
 #endif
