@@ -30,6 +30,7 @@ static int wifi_start = 0;
 static int wifi_connected = 0;
 static int wifi_restart = 0;
 static int wifi_failed_count = 0;
+static int wifi_reconnected_count = 0;
 static int wifi_restart_count = 0;
 
 static void app_wifi_scan_all()
@@ -107,7 +108,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
 
             wifi_connected = 1;
-            wifi_failed_count = 0;
+            wifi_reconnected_count = 0;
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
@@ -122,10 +123,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 
             wifi_connected = 0;
             wifi_failed_count++;
-            if ((wifi_failed_count % 10) == 0) {
+            wifi_reconnected_count++;
+            if ((wifi_reconnected_count % 10) == 0) {
                 app_wifi_restart();
             }
-            if ((wifi_failed_count / 10) >= 5) {
+            if ((wifi_reconnected_count / 10) >= 10) {
                 esp_restart();
             }
             break;
@@ -164,6 +166,7 @@ void app_wifi_initialise()
         .cc = "JP",
         .schan = 1,
         .nchan = 14,
+        .max_tx_power = 127,
         .policy = WIFI_COUNTRY_POLICY_AUTO,
     };
     wifi_scan_config_t scan_config = {
@@ -210,7 +213,7 @@ void app_wifi_shutdown()
 
 void app_wifi_wait_connected()
 {
-    xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
+    xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, false, true, 10000 / portTICK_PERIOD_MS);
 }
 
 void app_wifi_loop()
@@ -229,6 +232,11 @@ void app_wifi_restart()
 {
     wifi_restart = 1;
     wifi_restart_count++;
+}
+
+int app_wifi_failed_count()
+{
+    return wifi_failed_count;
 }
 
 int app_wifi_restart_count()

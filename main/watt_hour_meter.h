@@ -14,5 +14,7 @@ extern unsigned short PULSE_PER_HOUR[32][24];
 extern unsigned char AREA_NAME[16];
 extern unsigned char LOG_BUFFER[8][128];
 extern unsigned char LOG_INDEX;
+extern int64_t CURRENT_TIME;
+extern int64_t PREVIOUS_TIME;
 
 #endif

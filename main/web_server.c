@@ -53,7 +53,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
                     "<body>", AREA_NAME);
 
     // Area
-    html += sprintf(html, "<h1>%s</h1>", AREA_NAME);
+    html += sprintf(html, "<h1>%s - %.2fW</h1>", AREA_NAME, (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH);
 
     // Date Time
     html += sprintf(html, "<p>%d.%d.%d %d:%d:%d</p>", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
@@ -118,12 +118,10 @@ esp_err_t home_get_handler(httpd_req_t *req)
     }
     html += sprintf(html, "</p>");
 
-    // Heap
-    html += sprintf(html, "<p>Free Heap Size : %u</p>", esp_get_free_heap_size());
-
     // Chip
     esp_chip_info(&info);
     html += sprintf(html, "<p>");
+    html += sprintf(html, "IDF Version : %s<br>", esp_get_idf_version());
     html += sprintf(html, "Model : %s<br>", info.model == CHIP_ESP8266 ? "ESP8266" : info.model == CHIP_ESP32 ? "ESP32" : "Unknown");
     html += sprintf(html, "Feature : %s%s%s<br>",
                     info.features & CHIP_FEATURE_WIFI_BGN ? "802.11bgn" : "",
@@ -134,7 +132,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
     html += sprintf(html, "Flash : %dMB (%s)<br>",
                     spi_flash_get_chip_size() / (1024 * 1024),
                     info.features & CHIP_FEATURE_EMB_FLASH ? "Embedded-Flash" : "External-Flash");
-    html += sprintf(html, "IDF Version : %s<br>", esp_get_idf_version());
+    html += sprintf(html, "Free Heap : %u<br>", esp_get_free_heap_size());
     html += sprintf(html, "</p>");
 
     // Wifi
@@ -161,6 +159,7 @@ esp_err_t home_get_handler(httpd_req_t *req)
     html += sprintf(html, "Country Policy : %s<br>", 
                     (country.policy == WIFI_COUNTRY_POLICY_AUTO) ? "Auto" :
                     (country.policy == WIFI_COUNTRY_POLICY_MANUAL) ? "Manual" : "Unknown");
+    html += sprintf(html, "Failed Count : %d<br>", app_wifi_failed_count());
     html += sprintf(html, "Restart Count : %d<br>", app_wifi_restart_count());
     html += sprintf(html, "</p>");
 

@@ -26,11 +26,13 @@
 #include "web_server.h"
 #include "watt_hour_meter.h"
 
-struct tm PULSE_TIME;
+struct tm PULSE_TIMEINFO;
 unsigned short PULSE_PER_HOUR[32][24];
 unsigned char AREA_NAME[16];
 unsigned char LOG_BUFFER[8][128];
 unsigned char LOG_INDEX;
+int64_t CURRENT_TIME;
+int64_t PREVIOUS_TIME;
 
 static const char * const CONFIG_FORM_HOUR[24] =
 {
@@ -116,7 +118,7 @@ static void obtain_time(void)
         localtime_r(&now, &timeinfo);
     }
 
-    PULSE_TIME = timeinfo;
+    PULSE_TIMEINFO = timeinfo;
 }
 
 static void sntp(void *parameter)
@@ -222,8 +224,8 @@ static void pulse_web(void *parameter)
    
     // Pulse
     for (int i = 0; i < 24; ++i) {
-        total += PULSE_PER_HOUR[PULSE_TIME.tm_mday][i];
-        http_url += sprintf(http_url, "%s%d&", CONFIG_FORM_HOUR[i], PULSE_PER_HOUR[PULSE_TIME.tm_mday][i]);
+        total += PULSE_PER_HOUR[PULSE_TIMEINFO.tm_mday][i];
+        http_url += sprintf(http_url, "%s%d&", CONFIG_FORM_HOUR[i], PULSE_PER_HOUR[PULSE_TIMEINFO.tm_mday][i]);
     }
 
     // Total
@@ -249,7 +251,7 @@ static void pulse_web(void *parameter)
     // Time
     time(&now);
     localtime_r(&now, &timeinfo);
-    PULSE_TIME = timeinfo;
+    PULSE_TIMEINFO = timeinfo;
 
     free(HTTP_URL);
     
@@ -282,6 +284,9 @@ static void pulse(void *parameter)
     if (delta_time < 100 * 1000)
        return;
     last_time = pulse_time;
+
+    PREVIOUS_TIME = CURRENT_TIME;
+    CURRENT_TIME = pulse_time;
 
     time(&now);
     localtime_r(&now, &timeinfo);
