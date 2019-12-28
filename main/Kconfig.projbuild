@@ -14,6 +14,10 @@ config WIFI_PASSWORD
 
 		Can be left blank if the network has no security set.
 
+config BROKER_URL
+    string "Broker URL"
+	default ""
+
 config IMP_KWH
     int "Impressions per kWh"
         default 800

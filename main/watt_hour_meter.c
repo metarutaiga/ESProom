@@ -21,6 +21,7 @@
 #include <esp_http_server.h>
 #include <esp_wifi.h>
 #include <nvs_flash.h>
+#include <mqtt_client.h>
 
 #include "app_wifi.h"
 #include "web_server.h"
@@ -33,6 +34,9 @@ unsigned char LOG_BUFFER[8][128];
 unsigned char LOG_INDEX;
 int64_t CURRENT_TIME;
 int64_t PREVIOUS_TIME;
+
+static char MQTT_NAME[32];
+static esp_mqtt_client_handle_t MQTT_CLIENT;
 
 static const char * const CONFIG_FORM_HOUR[24] =
 {
@@ -123,6 +127,9 @@ static void obtain_time(void)
 
 static void sntp(void *parameter)
 {
+    setenv("TZ", "GMT-8", 1);
+    tzset();
+
     for (;;) {
 
         time_t now = 0;
@@ -137,8 +144,6 @@ static void sntp(void *parameter)
             ESP_LOGE(TAG, "The current date/time error");
 
             obtain_time();
-            setenv("TZ", "GMT-8", 1);
-            tzset();
         } else {
             strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
             ESP_LOGI(TAG, "The current date/time in Taipei is: %s", strftime_buf);
@@ -258,7 +263,6 @@ static void pulse_web(void *parameter)
     vTaskDelete(NULL);
 }
 
-#if WATT_DEBUG
 static void pulse_log(void *parameter)
 {
     time_t now;
@@ -267,10 +271,42 @@ static void pulse_log(void *parameter)
     time(&now);
     localtime_r(&now, &timeinfo);
 
+    if (MQTT_CLIENT) {
+        char data[256];
+
+        sprintf(data, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                timeinfo.tm_mday,
+                PULSE_PER_HOUR[timeinfo.tm_mday][0],
+                PULSE_PER_HOUR[timeinfo.tm_mday][1],
+                PULSE_PER_HOUR[timeinfo.tm_mday][2],
+                PULSE_PER_HOUR[timeinfo.tm_mday][3],
+                PULSE_PER_HOUR[timeinfo.tm_mday][4],
+                PULSE_PER_HOUR[timeinfo.tm_mday][5],
+                PULSE_PER_HOUR[timeinfo.tm_mday][6],
+                PULSE_PER_HOUR[timeinfo.tm_mday][7],
+                PULSE_PER_HOUR[timeinfo.tm_mday][8],
+                PULSE_PER_HOUR[timeinfo.tm_mday][9],
+                PULSE_PER_HOUR[timeinfo.tm_mday][10],
+                PULSE_PER_HOUR[timeinfo.tm_mday][11],
+                PULSE_PER_HOUR[timeinfo.tm_mday][12],
+                PULSE_PER_HOUR[timeinfo.tm_mday][13],
+                PULSE_PER_HOUR[timeinfo.tm_mday][14],
+                PULSE_PER_HOUR[timeinfo.tm_mday][15],
+                PULSE_PER_HOUR[timeinfo.tm_mday][16],
+                PULSE_PER_HOUR[timeinfo.tm_mday][17],
+                PULSE_PER_HOUR[timeinfo.tm_mday][18],
+                PULSE_PER_HOUR[timeinfo.tm_mday][19],
+                PULSE_PER_HOUR[timeinfo.tm_mday][20],
+                PULSE_PER_HOUR[timeinfo.tm_mday][21],
+                PULSE_PER_HOUR[timeinfo.tm_mday][22],
+                PULSE_PER_HOUR[timeinfo.tm_mday][23]);
+        esp_mqtt_client_publish(MQTT_CLIENT, MQTT_NAME, data, 0, 0, 1);
+    }
+#if WATT_DEBUG
     ESP_LOGI(TAG, "pulse : %d (%d.%d.%d %d:%d:%d)", PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+#endif
     vTaskDelete(NULL);
 }
-#endif
 
 static void pulse(void *parameter)
 {
@@ -294,9 +330,7 @@ static void pulse(void *parameter)
         return;
 
     PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
-#if WATT_DEBUG
     xTaskCreate(&pulse_log, "pulse_log", 2048, NULL, 5, NULL);
-#endif
 
     if (last_hour == timeinfo.tm_hour)
         return;
@@ -324,6 +358,92 @@ static void debug(void *parameter)
     xTaskCreate(&pulse_web, "pulse_web", 4096, NULL, 5, NULL);
 }
 
+static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
+{
+    static int initialized = 0;
+    esp_mqtt_client_handle_t client = event->client;
+    int msg_id;
+    switch (event->event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+
+            msg_id = esp_mqtt_client_subscribe(client, MQTT_NAME, 0);
+            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+            msg_id = esp_mqtt_client_unsubscribe(client, MQTT_NAME);
+            ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+
+            MQTT_CLIENT = client;
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+
+            MQTT_CLIENT = NULL;
+            break;
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_UNSUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+
+            if (initialized == 0) {
+                initialized = 1;
+
+                if (event->data_len != 0) {
+                    char* data = malloc(event->data_len + 1);
+                    if (data) {
+                        time_t now;
+                        struct tm timeinfo;
+
+                        char* token = NULL;
+                        char* step = NULL;
+
+                        time(&now);
+                        localtime_r(&now, &timeinfo);
+
+                        memcpy(data, event->data, event->data_len);
+                        data[event->data_len] = 0;
+                        step = strtok_r(data, ",", &token);
+                        if (step) {
+                            int day = atoi(step);
+                            if (day == timeinfo.tm_mday) {
+                                for (int i = 0; i < 24; ++i) {
+                                    step = strtok_r(NULL, ",", &token);
+                                    if (step == NULL)
+                                        break;
+                                    PULSE_PER_HOUR[day][i] += atoi(step);
+                                }
+                            }
+                        }
+                        free(data);
+                    }
+                }
+            }
+            break;
+        case MQTT_EVENT_ERROR:
+            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+            break;
+    }
+    return ESP_OK;
+}
+
+static void mqtt_app_start(void)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .uri = CONFIG_BROKER_URL,
+        .event_handle = mqtt_event_handler,
+    };
+
+    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_start(client);
+}
+
 void app_main()
 {
     static httpd_handle_t server = NULL;
@@ -348,6 +468,7 @@ void app_main()
     esp_wifi_get_mac(WIFI_IF_STA, mac);
     sprintf(hostname, "WATT_%02X%02X%02X", mac[3], mac[4], mac[5]);    
     tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
+    sprintf(MQTT_NAME, "%s", hostname);
 
     // Set Area
     config_area = strstr(CONFIG_AREA, hostname + sizeof("WATT_") - 1);
@@ -383,6 +504,9 @@ void app_main()
     gpio_install_isr_service(0);
     gpio_isr_handler_add(GPIO_NUM_0, debug, NULL);
     gpio_isr_handler_add(GPIO_NUM_2, pulse, NULL);
+
+    // mqtt
+    mqtt_app_start();
 
     // loop
     app_wifi_loop();
