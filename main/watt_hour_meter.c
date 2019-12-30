@@ -35,6 +35,7 @@ unsigned char LOG_INDEX;
 int64_t CURRENT_TIME;
 int64_t PREVIOUS_TIME;
 
+static char MQTT_INIT;
 static char MQTT_NAME[32];
 static esp_mqtt_client_handle_t MQTT_CLIENT;
 
@@ -271,11 +272,16 @@ static void pulse_log(void *parameter)
     time(&now);
     localtime_r(&now, &timeinfo);
 
-    if (MQTT_CLIENT) {
+    if (MQTT_CLIENT && MQTT_INIT) {
         char data[256];
 
-        sprintf(data, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+        sprintf(data, "{"
+                      "\"day\":%d,"
+                      "\"power\":%.2f,"
+                      "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]"
+                      "}",
                 timeinfo.tm_mday,
+                (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
                 PULSE_PER_HOUR[timeinfo.tm_mday][0],
                 PULSE_PER_HOUR[timeinfo.tm_mday][1],
                 PULSE_PER_HOUR[timeinfo.tm_mday][2],
@@ -360,7 +366,6 @@ static void debug(void *parameter)
 
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
-    static int initialized = 0;
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
     switch (event->event_id) {
@@ -382,47 +387,53 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             break;
         case MQTT_EVENT_SUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+
+            MQTT_INIT = 0;
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+
+            MQTT_INIT = 1;
             break;
         case MQTT_EVENT_PUBLISHED:
             ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+            
+            if (event->data_len != 0) {
+                char* data = malloc(event->data_len + 1);
+                if (data) {
+                    time_t now;
+                    struct tm timeinfo;
 
-            if (initialized == 0) {
-                initialized = 1;
+                    char* json_day = NULL;
+                    char* json_values = NULL;
 
-                if (event->data_len != 0) {
-                    char* data = malloc(event->data_len + 1);
-                    if (data) {
-                        time_t now;
-                        struct tm timeinfo;
+                    time(&now);
+                    localtime_r(&now, &timeinfo);
 
+                    memcpy(data, event->data, event->data_len);
+                    data[event->data_len] = 0;
+
+                    json_day = strstr(data, "\"day\":");
+                    json_values = strstr(data, "\"values\":[");
+                    if (json_day && json_values) {
                         char* token = NULL;
-                        char* step = NULL;
-
-                        time(&now);
-                        localtime_r(&now, &timeinfo);
-
-                        memcpy(data, event->data, event->data_len);
-                        data[event->data_len] = 0;
-                        step = strtok_r(data, ",", &token);
+                        char* step = strtok_r(json_values + sizeof("\"values\":[") - 1, ",", &token);
                         if (step) {
-                            int day = atoi(step);
-                            if (day == timeinfo.tm_mday) {
+                            int day = atoi(json_day + sizeof("\"day\":") - 1);
+                            if (day == timeinfo.tm_mday && PULSE_PER_HOUR[day][0] == 0) {
                                 for (int i = 0; i < 24; ++i) {
+                                    PULSE_PER_HOUR[day][i] += atoi(step);
                                     step = strtok_r(NULL, ",", &token);
                                     if (step == NULL)
                                         break;
-                                    PULSE_PER_HOUR[day][i] += atoi(step);
                                 }
                             }
                         }
-                        free(data);
                     }
+                    free(data);
                 }
             }
             break;
