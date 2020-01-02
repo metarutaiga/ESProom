@@ -36,6 +36,7 @@ int64_t CURRENT_TIME;
 int64_t PREVIOUS_TIME;
 
 static char MQTT_INIT;
+static char MQTT_DATA;
 static char MQTT_NAME[32];
 static esp_mqtt_client_handle_t MQTT_CLIENT;
 
@@ -401,7 +402,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             
-            if (event->data_len != 0) {
+            if (event->data_len != 0 && MQTT_DATA == 0) {
                 char* data = malloc(event->data_len + 1);
                 if (data) {
                     time_t now;
@@ -423,7 +424,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                         char* step = strtok_r(json_values + sizeof("\"values\":[") - 1, ",", &token);
                         if (step) {
                             int day = atoi(json_day + sizeof("\"day\":") - 1);
-                            if (day == timeinfo.tm_mday && PULSE_PER_HOUR[day][0] == 0) {
+                            if (day == timeinfo.tm_mday) {
                                 for (int i = 0; i < 24; ++i) {
                                     PULSE_PER_HOUR[day][i] += atoi(step);
                                     step = strtok_r(NULL, ",", &token);
@@ -436,6 +437,8 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                     free(data);
                 }
             }
+
+            MQTT_DATA = 1;
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
