@@ -222,7 +222,7 @@ static void pulse_web(void *parameter)
         return;
 
     // URL
-    http_url += sprintf(http_url, "https://docs.google.com/forms/d/e/");
+    http_url += sprintf(http_url, CONFIG_FORM_URL "/forms/d/e/");
     http_url += sprintf(http_url, CONFIG_FORM_ID);
     http_url += sprintf(http_url, "/formResponse?usp=pp_url&");
 

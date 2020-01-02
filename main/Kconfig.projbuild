@@ -26,6 +26,10 @@ config AREA
     string "Area"
 	default "1F"
 
+config FORM_URL
+    string "Google Forms URL"
+        default "https://docs.google.com"
+
 config FORM_ID
     string "Google Forms ID"
 	default ""
