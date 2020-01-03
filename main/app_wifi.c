@@ -33,14 +33,22 @@ static int wifi_failed_count = 0;
 static int wifi_reconnected_count = 0;
 static int wifi_restart_count = 0;
 
+static unsigned char wifi_ssids[8][16];
+static unsigned char wifi_passwords[8][16];
+static unsigned char wifi_best_ssid;
+
 static void app_wifi_scan_all()
 {
     uint16_t ap_count = 0;
     wifi_ap_record_t *ap_list;
+    char best_rssi = -128;
+    unsigned char best_ssid = 0;
 
     esp_wifi_scan_get_ap_num(&ap_count);	
-    if (ap_count <= 0)
-        return; 
+    if (ap_count <= 0) {
+        esp_restart();
+        return;
+    }
 
     ap_list = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&ap_count, ap_list));	
@@ -71,8 +79,21 @@ static void app_wifi_scan_all()
                 break;
     	}
         ESP_LOGI(TAG, "%26.26s    |    % 4d    |    %22.22s", ap_list[i].ssid, ap_list[i].rssi, authmode);
+
+        for (unsigned char j = 0; j < 8; j++) {
+            if (wifi_ssids[j][0] == 0)
+                continue;
+            if (strcmp((char*)ap_list[i].ssid, (char*)wifi_ssids[j]) == 0) {
+                if (best_rssi > ap_list[i].rssi) {
+                    best_rssi = ap_list[i].rssi;
+                    best_ssid = j;
+                }
+            }
+        }
     }
     free(ap_list);
+
+    wifi_best_ssid = best_ssid;
 }
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
@@ -81,6 +102,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     uint8_t mac[6];
     char hostname[16];
 #endif
+    wifi_config_t wifi_config;
 
     /* For accessing reason codes in case of disconnection */
     system_event_info_t *info = &event->event_info;
@@ -144,6 +166,13 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             ESP_LOGI(TAG, "SYSTEM_EVENT_SCAN_DONE");
 
             app_wifi_scan_all();
+
+            memset(&wifi_config, 0, sizeof(wifi_config));
+            strcpy((char*)wifi_config.sta.ssid, (char*)wifi_ssids[wifi_best_ssid]);
+            strcpy((char*)wifi_config.sta.password, (char*)wifi_passwords[wifi_best_ssid]);
+            ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
+            esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
+
             esp_wifi_connect();
             break;
         default:
@@ -162,12 +191,19 @@ void app_wifi_prepare()
 
 void app_wifi_initialise()
 {
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     wifi_country_t country = {
         .cc = "JP",
         .schan = 1,
         .nchan = 14,
         .max_tx_power = 127,
         .policy = WIFI_COUNTRY_POLICY_AUTO,
+    };
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = CONFIG_WIFI_SSID,
+            .password = CONFIG_WIFI_PASSWORD,
+        },
     };
     wifi_scan_config_t scan_config = {
         .ssid = 0,
@@ -179,18 +215,40 @@ void app_wifi_initialise()
         .scan_time.active.max = 150,
     };
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    const char* ssid = CONFIG_WIFI_SSID;
+    const char* password = CONFIG_WIFI_PASSWORD;
+
+    memset(wifi_ssids, 0, sizeof(wifi_ssids));
+    for (unsigned char i = 0, j = 0, c = 1; c != 0; ssid++) {
+        c = (*ssid);
+        if (c == ';') {
+            i++;
+            j = 0;
+            continue;
+        }
+        wifi_ssids[i][j++] = c;
+    }
+
+    memset(wifi_passwords, 0, sizeof(wifi_passwords));
+    for (unsigned char i = 0, j = 0, c = 1; c != 0; password++) {
+        c = (*password);
+        if (c == ';') {
+            i++;
+            j = 0;
+            continue;
+        }
+        wifi_passwords[i][j++] = c;
+    }
+
+    wifi_best_ssid = 0;
+    strcpy((char*)wifi_config.sta.ssid, (char*)wifi_ssids[wifi_best_ssid]);
+    strcpy((char*)wifi_config.sta.password, (char*)wifi_passwords[wifi_best_ssid]);
+
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_country(&country));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = CONFIG_WIFI_SSID,
-            .password = CONFIG_WIFI_PASSWORD,
-        },
-    };
-    ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_STA, WIFI_BW_HT40));
     ESP_ERROR_CHECK(esp_wifi_start());

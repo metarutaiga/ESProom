@@ -14,6 +14,29 @@ config WIFI_PASSWORD
 
 		Can be left blank if the network has no security set.
 
+config OTA_SERVER_IP
+    string "HTTP Server IP"
+	default "192.168.0.3"
+	help
+		HTTP Server IP to download the image file from.
+
+		See example README.md for details.
+
+config OTA_SERVER_PORT
+	string "HTTP Server Port"
+	default "8070"
+	help
+		HTTP Server port to connect to.
+		Should be chosen not to conflict with any other port used
+		on the system.
+
+config OTA_FILENAME
+	string "HTTP GET Filename"
+	default "/watt_hour_meter.ota.bin"
+	help
+		Filename of the app image file to download for
+		the OTA update.
+
 config BROKER_URL
     string "Broker URL"
 	default ""

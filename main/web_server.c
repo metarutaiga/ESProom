@@ -14,6 +14,7 @@
 #include <esp_http_server.h>
 #include <esp_spi_flash.h>
 
+#include "app_ota.h"
 #include "app_wifi.h"
 #include "watt_hour_meter.h"
 #include "web_server.h"
@@ -193,6 +194,7 @@ httpd_handle_t start_webserver(void)
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &home);
+        ota_register_uri(server);
         return server;
     }
 
