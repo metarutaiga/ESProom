@@ -23,6 +23,8 @@
 #include <nvs_flash.h>
 #include <mqtt_client.h>
 
+#include <esp8266/pin_mux_register.h>
+
 #include "app_wifi.h"
 #include "web_server.h"
 #include "watt_hour_meter.h"
@@ -464,6 +466,11 @@ void app_main()
     uint8_t mac[6] = { 0 };
     char hostname[16];
     char* config_area = NULL;
+
+    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_GPIO1);
+    PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0RXD_U, FUNC_GPIO3);
+    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0RXD_U, FUNC_U0RXD);
+    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_U0TXD);
 
     // Set putchar
     orig_putchar = esp_log_set_putchar(watt_putchar);
