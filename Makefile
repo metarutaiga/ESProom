@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := watt_hour_meter
+PROJECT_NAME := esp_example
 
 include $(IDF_PATH)/make/project.mk
 

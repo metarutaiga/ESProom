@@ -1,4 +1,4 @@
-/* ESP HTTP Client Example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -7,10 +7,11 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#ifndef _WEB_SERVER_H_
-#define _WEB_SERVER_H_
+#ifndef _MOD_OTA_H_
+#define _MOD_OTA_H_
 
-httpd_handle_t start_webserver(void);
-void stop_webserver(httpd_handle_t server);
+#include <esp_http_server.h>
+
+void mod_ota(httpd_handle_t server);
 
 #endif

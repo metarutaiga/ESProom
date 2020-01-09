@@ -1,4 +1,4 @@
-/* ESP HTTP Client Example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -7,14 +7,17 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include <stdlib.h>
+#include <string.h>
+
+#include <freertos/event_groups.h>
+
 #include <esp_wifi.h>
 #include <esp_event_loop.h>
 #include <esp_log.h>
 #include <esp_system.h>
-#include <esp_http_server.h>
-#include <freertos/event_groups.h>
 
-#include "app_wifi.h"
+#include "mod_wifi.h"
 
 static const char * const TAG = "WIFI";
 
@@ -37,22 +40,20 @@ static unsigned char wifi_ssids[8][16];
 static unsigned char wifi_passwords[8][16];
 static unsigned char wifi_best_ssid;
 
-static void app_wifi_scan_all()
+static void mod_wifi_scan_result()
 {
     uint16_t ap_count = 0;
-    wifi_ap_record_t *ap_list;
-    char best_rssi = -128;
-    unsigned char best_ssid = 0;
-
     esp_wifi_scan_get_ap_num(&ap_count);	
     if (ap_count <= 0) {
         esp_restart();
         return;
     }
 
-    ap_list = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
+    wifi_ap_record_t *ap_list = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&ap_count, ap_list));	
 
+    char best_rssi = -128;
+    unsigned char best_ssid = 0;
     ESP_LOGI(TAG, "======================================================================");
     ESP_LOGI(TAG, "             SSID             |    RSSI    |           AUTH           ");
     ESP_LOGI(TAG, "======================================================================");
@@ -83,6 +84,7 @@ static void app_wifi_scan_all()
         for (unsigned char j = 0; j < 8; j++) {
             if (wifi_ssids[j][0] == 0)
                 continue;
+
             if (strcmp((char*)ap_list[i].ssid, (char*)wifi_ssids[j]) == 0) {
                 if (best_rssi > ap_list[i].rssi) {
                     best_rssi = ap_list[i].rssi;
@@ -98,10 +100,6 @@ static void app_wifi_scan_all()
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
-#if 0
-    uint8_t mac[6];
-    char hostname[16];
-#endif
     wifi_config_t wifi_config;
 
     /* For accessing reason codes in case of disconnection */
@@ -112,12 +110,6 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
 
             esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
-#if 0
-            esp_wifi_get_mac(WIFI_IF_STA, mac);
-            sprintf(hostname, "ESP_%02X%02X%02X", mac[3], mac[4], mac[5]);    
-            tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
-            ESP_LOGI(TAG, "Hostname : %s", hostname);
-#endif
 
             wifi_start = 1;
             break;
@@ -147,10 +139,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
             wifi_failed_count++;
             wifi_reconnected_count++;
             if ((wifi_reconnected_count % 10) == 0) {
-                app_wifi_restart();
-            }
-            if ((wifi_reconnected_count / 10) >= 10) {
-                esp_restart();
+                mod_wifi_restart();
             }
             break;
         case SYSTEM_EVENT_STA_GOT_IP:
@@ -165,7 +154,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         case SYSTEM_EVENT_SCAN_DONE:
             ESP_LOGI(TAG, "SYSTEM_EVENT_SCAN_DONE");
 
-            app_wifi_scan_all();
+            mod_wifi_scan_result();
 
             memset(&wifi_config, 0, sizeof(wifi_config));
             strcpy((char*)wifi_config.sta.ssid, (char*)wifi_ssids[wifi_best_ssid]);
@@ -182,14 +171,14 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-void app_wifi_prepare()
+static void mod_wifi_prepare()
 {
     tcpip_adapter_init();
     wifi_event_group = xEventGroupCreate();
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
 }
 
-void app_wifi_initialise()
+static void mod_wifi_initialise()
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     wifi_country_t country = {
@@ -255,49 +244,65 @@ void app_wifi_initialise()
     ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
 }
 
-void app_wifi_shutdown()
+static void mod_wifi_shutdown()
 {
     ESP_LOGI(TAG, "Shutdown WiFi...");
     ESP_ERROR_CHECK(esp_wifi_disconnect());
-    while (wifi_connected == 1) {
+    for (unsigned char i = 0; i < 10; ++i) {
+        if (wifi_connected == 0)
+            break;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     ESP_ERROR_CHECK(esp_wifi_stop());
-    while (wifi_start == 1) {
+    for (unsigned char i = 0; i < 10; ++i) {
+        if (wifi_start == 0)
+            break;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     ESP_ERROR_CHECK(esp_wifi_deinit());
 }
 
-void app_wifi_wait_connected()
+void mod_wifi(void)
+{
+    // Get MAC
+    uint8_t mac[6] = { 0 };
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+
+    // Set Hostname
+    char hostname[16];
+    sprintf(hostname, "ESP_%02X%02X%02X", mac[3], mac[4], mac[5]);    
+    tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
+
+    mod_wifi_prepare();
+    mod_wifi_initialise();
+}
+
+void mod_wifi_update(void)
+{
+    if (wifi_restart == 1) {
+        wifi_restart = 0;
+        mod_wifi_shutdown();
+        mod_wifi_initialise();
+    }
+}
+
+void mod_wifi_wait_connected(void)
 {
     xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, false, true, 10000 / portTICK_PERIOD_MS);
 }
 
-void app_wifi_loop()
-{
-    for (;;) {
-        if (wifi_restart == 1) {
-            wifi_restart = 0;
-            app_wifi_shutdown();
-            app_wifi_initialise();
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-}
-
-void app_wifi_restart()
+void mod_wifi_restart(void)
 {
     wifi_restart = 1;
     wifi_restart_count++;
 }
 
-int app_wifi_failed_count()
+int mod_wifi_failed_count(void)
 {
     return wifi_failed_count;
 }
 
-int app_wifi_restart_count()
+int mod_wifi_restart_count(void)
 {
     return wifi_restart_count;
 }

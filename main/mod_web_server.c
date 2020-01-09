@@ -1,4 +1,4 @@
-/* ESP HTTP Client Example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -7,22 +7,22 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include <string.h>
+#include <stdlib.h>
+
 #include <esp_wifi.h>
-#include <esp_event_loop.h>
 #include <esp_log.h>
-#include <esp_system.h>
-#include <esp_http_server.h>
 #include <esp_spi_flash.h>
 
-#include "app_ota.h"
-#include "app_wifi.h"
-#include "watt_hour_meter.h"
-#include "web_server.h"
+#include "mod_log.h"
+#include "mod_watt_hour_meter.h"
+#include "mod_web_server.h"
+#include "mod_wifi.h"
 
 static const char * const TAG = "WEB-SERVER";
 
 /* An HTTP GET handler */
-esp_err_t home_get_handler(httpd_req_t *req)
+static esp_err_t home_get_handler(httpd_req_t *req)
 {
     char *HTML = malloc(16384);
     char *html = HTML;
@@ -160,8 +160,8 @@ esp_err_t home_get_handler(httpd_req_t *req)
     html += sprintf(html, "Country Policy : %s<br>", 
                     (country.policy == WIFI_COUNTRY_POLICY_AUTO) ? "Auto" :
                     (country.policy == WIFI_COUNTRY_POLICY_MANUAL) ? "Manual" : "Unknown");
-    html += sprintf(html, "Failed Count : %d<br>", app_wifi_failed_count());
-    html += sprintf(html, "Restart Count : %d<br>", app_wifi_restart_count());
+    html += sprintf(html, "Failed Count : %d<br>", mod_wifi_failed_count());
+    html += sprintf(html, "Restart Count : %d<br>", mod_wifi_restart_count());
     html += sprintf(html, "</p>");
 
     // Tail
@@ -177,13 +177,13 @@ esp_err_t home_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-httpd_uri_t home = {
+static httpd_uri_t home = {
     .uri       = "/",
     .method    = HTTP_GET,
     .handler   = home_get_handler,
 };
 
-httpd_handle_t start_webserver(void)
+httpd_handle_t mod_webserver_start(void)
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -194,7 +194,6 @@ httpd_handle_t start_webserver(void)
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &home);
-        ota_register_uri(server);
         return server;
     }
 
@@ -202,7 +201,7 @@ httpd_handle_t start_webserver(void)
     return NULL;
 }
 
-void stop_webserver(httpd_handle_t server)
+void mod_webserver_stop(httpd_handle_t server)
 {
     // Stop the httpd server
     httpd_stop(server);

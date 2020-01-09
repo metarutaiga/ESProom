@@ -1,4 +1,4 @@
-/* OTA example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -7,9 +7,14 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#ifndef _APP_OTA_H_
-#define _APP_OTA_H_
+#ifndef _MOD_WIFI_H_
+#define _MOD_WIFI_H_
 
-void ota_register_uri(httpd_handle_t server);
+void mod_wifi(void);
+void mod_wifi_update(void);
+void mod_wifi_wait_connected(void);
+void mod_wifi_restart(void);
+int mod_wifi_failed_count(void);
+int mod_wifi_restart_count(void);
 
 #endif

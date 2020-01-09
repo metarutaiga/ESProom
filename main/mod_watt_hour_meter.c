@@ -1,4 +1,4 @@
-/* ESP HTTP Client Example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -9,34 +9,24 @@
 
 #include <string.h>
 #include <stdlib.h>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <driver/gpio.h>
-#include <lwip/apps/sntp.h>
 
 #include <esp_log.h>
-#include <esp_system.h>
 #include <esp_timer.h>
 #include <esp_http_client.h>
-#include <esp_http_server.h>
 #include <esp_wifi.h>
-#include <nvs_flash.h>
 #include <mqtt_client.h>
 
-#include <esp8266/pin_mux_register.h>
+#include "mod_watt_hour_meter.h"
 
-#include "app_wifi.h"
-#include "web_server.h"
-#include "watt_hour_meter.h"
-
-struct tm PULSE_TIMEINFO;
 unsigned short PULSE_PER_HOUR[32][24];
 unsigned char AREA_NAME[16];
-unsigned char LOG_BUFFER[8][128];
-unsigned char LOG_INDEX;
 int64_t CURRENT_TIME;
 int64_t PREVIOUS_TIME;
 
+static struct tm PULSE_TIMEINFO;
 static char MQTT_INIT;
 static char MQTT_DATA;
 static char MQTT_NAME[32];
@@ -72,107 +62,7 @@ static const char * const CONFIG_FORM_HOUR[24] =
 
 static const char * const TAG = "WATT-HOUR METER";
 
-static putchar_like_t orig_putchar = NULL;
-
-static int watt_putchar(int ch)
-{
-    static int line = 0;
-    static int color = 0;
-
-    if (ch == '\n') {
-        LOG_INDEX = (LOG_INDEX + 1) % 8;
-        line = 0;
-    }
-    else if (ch == '\033') {
-        color = 1;
-    }
-    else if (ch == 'm' && color == 1) {
-        color = 0;
-    }
-    else if (line < (sizeof(LOG_BUFFER[LOG_INDEX]) - 1) && color == 0) {
-        LOG_BUFFER[LOG_INDEX][line++] = ch;
-        LOG_BUFFER[LOG_INDEX][line] = 0;
-    }
-
-    if (orig_putchar)
-        return orig_putchar(ch);
-
-    return ESP_OK;
-}
-
-static void initialize_sntp(void)
-{
-    ESP_LOGI(TAG, "Initializing SNTP");
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    sntp_setservername(0, "tw.pool.ntp.org");
-    sntp_init();
-}
-
-static void obtain_time(void)
-{
-    app_wifi_wait_connected();
-    initialize_sntp();
-
-    // wait for time to be set
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
-    int retry = 0;
-    const int retry_count = 10;
-
-    while (timeinfo.tm_year < (2016 - 1900) && ++retry < retry_count) {
-        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-        time(&now);
-        localtime_r(&now, &timeinfo);
-    }
-
-    PULSE_TIMEINFO = timeinfo;
-}
-
-static void sntp(void *parameter)
-{
-    setenv("TZ", "GMT-8", 1);
-    tzset();
-
-    for (;;) {
-
-        time_t now = 0;
-        struct tm timeinfo = { 0 };
-        char strftime_buf[64];
-
-        // update 'now' variable with current time
-        time(&now);
-        localtime_r(&now, &timeinfo);
-
-        if (timeinfo.tm_year < (2016 - 1900)) {
-            ESP_LOGE(TAG, "The current date/time error");
-
-            obtain_time();
-        } else {
-            strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-            ESP_LOGI(TAG, "The current date/time in Taipei is: %s", strftime_buf);
-            break;
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-static void web_server(void *parameter)
-{
-    httpd_handle_t *server = (httpd_handle_t *) parameter;
-
-    app_wifi_wait_connected();
-
-    /* Start the web server */
-    if (*server == NULL) {
-        *server = start_webserver();
-    }
-
-    vTaskDelete(NULL);
-}
-
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
+static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     switch(evt->event_id) {
         case HTTP_EVENT_ERROR:
@@ -244,7 +134,6 @@ static void pulse_web(void *parameter)
     http_url += sprintf(http_url, "submit=Submit");
     ESP_LOGI(TAG, "%s", HTTP_URL);
 
-    app_wifi_wait_connected();
     client = esp_http_client_init(&config);
     err = esp_http_client_perform(client);
     if (err == ESP_OK) {
@@ -354,19 +243,6 @@ static void pulse(void *parameter)
     last_hour = timeinfo.tm_hour;
 }
 
-static void debug(void *parameter)
-{
-    static int64_t last_time = 0;
-    int64_t pulse_time = esp_timer_get_time();
-    int64_t delta_time = pulse_time - last_time;
-
-    if (delta_time < 1000 * 1000)
-       return;
-    last_time = pulse_time;
-
-    xTaskCreate(&pulse_web, "pulse_web", 4096, NULL, 5, NULL);
-}
-
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
     esp_mqtt_client_handle_t client = event->client;
@@ -460,39 +336,19 @@ static void mqtt_app_start(void)
     esp_mqtt_client_start(client);
 }
 
-void app_main()
+void mod_watt_hour_meter(gpio_num_t gpio_num)
 {
-    static httpd_handle_t server = NULL;
+    // Get MAC
     uint8_t mac[6] = { 0 };
-    char hostname[16];
-    char* config_area = NULL;
-
-    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_GPIO1);
-    PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0RXD_U, FUNC_GPIO3);
-    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0RXD_U, FUNC_U0RXD);
-    //PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_U0TXD);
-
-    // Set putchar
-    orig_putchar = esp_log_set_putchar(watt_putchar);
-
-    // Initialize
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-    app_wifi_prepare();
-    app_wifi_initialise();
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
 
     // Set Hostname
-    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    char hostname[16];
     sprintf(hostname, "WATT_%02X%02X%02X", mac[3], mac[4], mac[5]);    
     tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
-    sprintf(MQTT_NAME, "%s", hostname);
 
     // Set Area
-    config_area = strstr(CONFIG_AREA, hostname + sizeof("WATT_") - 1);
+    char *config_area = strstr(CONFIG_AREA, hostname + sizeof("WATT_") - 1);
     if (config_area != NULL) {
         config_area = strchr(config_area, '=');
         if (config_area != NULL) {
@@ -512,23 +368,12 @@ void app_main()
     }
     AREA_NAME[sizeof(AREA_NAME) - 1] = 0;
 
-    // Services
-    xTaskCreate(sntp, "sntp", 2048, NULL, 10, NULL);
-    xTaskCreate(web_server, "web_server", 2048, &server, 10, NULL);
-
-    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
-    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_INPUT);
-    gpio_set_intr_type(GPIO_NUM_0, GPIO_INTR_NEGEDGE);
-    gpio_set_intr_type(GPIO_NUM_2, GPIO_INTR_NEGEDGE);
-    gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
-    gpio_set_pull_mode(GPIO_NUM_2, GPIO_PULLUP_ONLY);
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(GPIO_NUM_0, debug, NULL);
-    gpio_isr_handler_add(GPIO_NUM_2, pulse, NULL);
-
-    // mqtt
+    strcpy(MQTT_NAME, hostname);
     mqtt_app_start();
 
-    // loop
-    app_wifi_loop();
+    gpio_set_direction(gpio_num, GPIO_MODE_INPUT);
+    gpio_set_intr_type(gpio_num, GPIO_INTR_NEGEDGE);
+    gpio_set_pull_mode(gpio_num, GPIO_PULLUP_ONLY);
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(gpio_num, pulse, NULL);
 }

@@ -1,4 +1,4 @@
-/* OTA example
+/* ESP Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -6,20 +6,17 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <netdb.h>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
-#include <esp_system.h>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_http_server.h>
 
-#include "watt_hour_meter.h"
+#include "mod_log.h"
+#include "mod_ota.h"
 
 #define BUFFSIZE 1500
 #define TEXT_BUFFSIZE 1024
@@ -424,7 +421,7 @@ static void ota_task(void *parameter)
     return;
 }
 
-esp_err_t ota_get_handler(httpd_req_t *req)
+static esp_err_t ota_get_handler(httpd_req_t *req)
 {
     static int enter = 0;
 
@@ -454,7 +451,7 @@ httpd_uri_t ota = {
     .handler   = ota_get_handler,
 };
 
-void ota_register_uri(httpd_handle_t server)
+void mod_ota(httpd_handle_t server)
 {
     httpd_register_uri_handler(server, &ota);
 }
