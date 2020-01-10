@@ -228,6 +228,9 @@ static void pulse(void *parameter)
     if (timeinfo.tm_year < (2016 - 1900))
         return;
 
+    if (PULSE_TIMEINFO.tm_year < (2016 - 1900))
+        PULSE_TIMEINFO = timeinfo;
+
     PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
     xTaskCreate(&pulse_log, "pulse_log", 2048, NULL, 5, NULL);
 
@@ -260,18 +263,6 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             msg_id = esp_mqtt_client_unsubscribe(client, MQTT_NAME);
             ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
 
-            sprintf(topic, "%s/connected", MQTT_NAME);
-            msg_id = esp_mqtt_client_publish(client, topic, "1", 0, 0, 1);
-            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
-            sprintf(topic, "%s/build", MQTT_NAME);
-            msg_id = esp_mqtt_client_publish(client, topic, __DATE__ " " __TIME__, 0, 0, 0);
-            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
-            sprintf(topic, "%s/name", MQTT_NAME);
-            msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 0);
-            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
             MQTT_CLIENT = client;
             break;
         case MQTT_EVENT_DISCONNECTED:
@@ -286,6 +277,18 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
             ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+
+            sprintf(topic, "%s/connected", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, "1", 0, 0, 1);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+            sprintf(topic, "%s/build", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, __DATE__ " " __TIME__, 0, 0, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+            sprintf(topic, "%s/name", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
             MQTT_INIT = 1;
             break;
