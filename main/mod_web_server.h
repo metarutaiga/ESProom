@@ -15,4 +15,6 @@
 httpd_handle_t mod_webserver_start(void);
 void mod_webserver_stop(httpd_handle_t server);
 
+void mod_webserver_printf(httpd_req_t *req, const char* format, ...);
+
 #endif

@@ -19,6 +19,7 @@
 #include <esp_wifi.h>
 #include <mqtt_client.h>
 
+#include "mod_web_server.h"
 #include "mod_watt_hour_meter.h"
 
 unsigned short PULSE_PER_HOUR[32][24];
@@ -246,10 +247,24 @@ static void pulse(void *parameter)
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
     esp_mqtt_client_handle_t client = event->client;
+    char topic[64];
     int msg_id;
+
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+
+            sprintf(topic, "%s/connected", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, "1", 0, 0, 1);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+            sprintf(topic, "%s/build", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, __DATE__ " " __TIME__, 0, 0, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+            sprintf(topic, "%s/name", MQTT_NAME);
+            msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 0);
+            ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
             msg_id = esp_mqtt_client_subscribe(client, MQTT_NAME, 0);
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
@@ -327,9 +342,15 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
 static void mqtt_app_start(void)
 {
+    char topic[64];
+    sprintf(topic, "%s/connected", MQTT_NAME);
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .uri = CONFIG_BROKER_URL,
         .event_handle = mqtt_event_handler,
+        .lwt_topic = topic,
+        .lwt_msg = "0",
+        .lwt_retain = 1,
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
@@ -376,4 +397,103 @@ void mod_watt_hour_meter(gpio_num_t gpio_num)
     gpio_set_pull_mode(gpio_num, GPIO_PULLUP_ONLY);
     gpio_install_isr_service(0);
     gpio_isr_handler_add(gpio_num, pulse, NULL);
+}
+
+void mod_watt_hour_meter_http_handler(httpd_req_t *req)
+{
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    // Chart
+    mod_webserver_printf(req, "%s", "<canvas id=\"meter\" height=\"50%\"></canvas>");
+    mod_webserver_printf(req, "<script>");
+    mod_webserver_printf(req, "var ctx = document.getElementById('meter');");
+    mod_webserver_printf(req, "var myChart = new Chart(ctx, {");
+    mod_webserver_printf(req,   "type: 'line',");
+    mod_webserver_printf(req,   "data: {");
+    mod_webserver_printf(req,     "labels: [");
+    for (int hour = 0; hour < 24; hour += 6) {
+        mod_webserver_printf(req, "%s'%d'"
+                                  "%s'%d'"
+                                  "%s'%d'"
+                                  "%s'%d'"
+                                  "%s'%d'"
+                                  "%s'%d'", (hour + 0) ? "," : "", (hour + 0),
+                                            (hour + 1) ? "," : "", (hour + 1),
+                                            (hour + 2) ? "," : "", (hour + 2),
+                                            (hour + 3) ? "," : "", (hour + 3),
+                                            (hour + 4) ? "," : "", (hour + 4),
+                                            (hour + 5) ? "," : "", (hour + 5));
+    }
+    mod_webserver_printf(req,     "],");
+    mod_webserver_printf(req,     "datasets: [{");
+    mod_webserver_printf(req,       "label: 'pulse',");
+    mod_webserver_printf(req,       "data: [");
+    for (int hour = 0; hour < 24; hour += 6) {
+        mod_webserver_printf(req, "%s%d"
+                                  "%s%d"
+                                  "%s%d"
+                                  "%s%d"
+                                  "%s%d"
+                                  "%s%d", (hour + 0) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 0],
+                                          (hour + 1) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 1],
+                                          (hour + 2) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 2],
+                                          (hour + 3) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 3],
+                                          (hour + 4) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 4],
+                                          (hour + 5) ? "," : "", PULSE_PER_HOUR[timeinfo.tm_mday][hour + 5]);
+    }
+    mod_webserver_printf(req,       "],");
+    mod_webserver_printf(req,       "borderWidth: 1");
+    mod_webserver_printf(req,     "}]");
+    mod_webserver_printf(req,   "}");
+    mod_webserver_printf(req, "});");
+    mod_webserver_printf(req, "</script>");
+
+    // Table
+    mod_webserver_printf(req, "%s", "<table style=\"width:100%\" border='1'>");
+    mod_webserver_printf(req, "<tr>");
+    mod_webserver_printf(req, "<th>Day</th>");
+    for (int hour = 0; hour < 24; hour += 6) {
+        mod_webserver_printf(req, "<th>%02d</th>"
+                                  "<th>%02d</th>"
+                                  "<th>%02d</th>"
+                                  "<th>%02d</th>"
+                                  "<th>%02d</th>"
+                                  "<th>%02d</th>", (hour + 0),
+                                                   (hour + 1),
+                                                   (hour + 2),
+                                                   (hour + 3),
+                                                   (hour + 4),
+                                                   (hour + 5));
+    }
+    mod_webserver_printf(req, "<th>Total</th>");
+    mod_webserver_printf(req, "<th>kWh</th>");
+    mod_webserver_printf(req, "</tr>");
+    for (int day = 1; day < 32; ++day) {
+        int total = 0;
+
+        mod_webserver_printf(req, "<tr>");
+        mod_webserver_printf(req, "<th>%d</th>", day);
+        for (int hour = 0; hour < 24; hour += 6) {
+            mod_webserver_printf(req, "<th>%d</th>"
+                                      "<th>%d</th>"
+                                      "<th>%d</th>"
+                                      "<th>%d</th>"
+                                      "<th>%d</th>"
+                                      "<th>%d</th>", PULSE_PER_HOUR[day][hour + 0],
+                                                     PULSE_PER_HOUR[day][hour + 1],
+                                                     PULSE_PER_HOUR[day][hour + 2],
+                                                     PULSE_PER_HOUR[day][hour + 3],
+                                                     PULSE_PER_HOUR[day][hour + 4],
+                                                     PULSE_PER_HOUR[day][hour + 5]);
+            total += PULSE_PER_HOUR[day][hour];
+        }
+        mod_webserver_printf(req, "<th>%d</th>", total);
+        mod_webserver_printf(req, "<th>%.2f</th>", total / (float)CONFIG_IMP_KWH);
+        mod_webserver_printf(req, "</tr>");
+    }
+    mod_webserver_printf(req, "</table>");
 }

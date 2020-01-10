@@ -47,7 +47,6 @@ typedef struct esp_ota_firm {
     size_t              bytes;
 } esp_ota_firm_t;
 
-static const char *TAG = "ota";
 /*an ota data write buffer ready to write to the flash*/
 static char ota_write_data[BUFFSIZE + 1] = { 0 };
 /*an packet receive buffer*/
@@ -60,6 +59,8 @@ static int socket_id = -1;
 static int fatal_error = 0;
 /*http log*/
 static httpd_req_t *log_req = NULL;
+
+static const char *TAG = "OTA";
 
 /*read buffer by byte still delim ,return read bytes counts*/
 static int read_until(const char *buffer, char delim, int len)
@@ -78,8 +79,12 @@ static void ota_http_log()
         return;
 
     int log_index = (LOG_INDEX - 1) % 8;
-    httpd_resp_send_chunk(log_req, (char*)LOG_BUFFER[log_index], strlen((char*)LOG_BUFFER[log_index]));
-    httpd_resp_send_chunk(log_req, "<br>", strlen("<br>"));
+    char* log_buffer = (char*)LOG_BUFFER[log_index];
+    int len = strlen(log_buffer);
+    if (len) {
+        httpd_resp_send_chunk(log_req, log_buffer, len);
+        httpd_resp_send_chunk(log_req, "<br>", strlen("<br>"));
+    }
 }
 
 static bool connect_to_http_server()
@@ -407,13 +412,13 @@ static void ota_task(void *parameter)
     if (esp_ota_end(update_handle) != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end failed!");
         ota_http_log();
-        task_fatal_error();
+        esp_restart();
     }
     err = esp_ota_set_boot_partition(update_partition);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_set_boot_partition failed! err=0x%x", err);
         ota_http_log();
-        task_fatal_error();
+        esp_restart();
     }
     ESP_LOGI(TAG, "Prepare to restart system!");
     ota_http_log();
@@ -425,14 +430,12 @@ static esp_err_t ota_get_handler(httpd_req_t *req)
 {
     static int enter = 0;
 
-    if (enter != 0) {
-        return ESP_OK;
-    }
-
     enter++;
     fatal_error = 0;
     log_req = req;
-    xTaskCreate(&ota_task, "ota_task", 8192, req, 5, NULL);
+    if (enter == 1) {
+        xTaskCreate(&ota_task, "ota_task", 8192, req, 5, NULL);
+    }
     for (int i = 0; i < 10 * 60; ++i) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         if (fatal_error != 0)

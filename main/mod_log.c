@@ -10,6 +10,7 @@
 #include <esp_err.h>
 #include <esp_log.h>
 
+#include "mod_web_server.h"
 #include "mod_log.h"
 
 unsigned char LOG_BUFFER[8][128];
@@ -46,4 +47,13 @@ static int mod_putchar(int ch)
 void mod_log(void)
 {
     orig_putchar = esp_log_set_putchar(mod_putchar);
+}
+
+void mod_log_http_handler(httpd_req_t *req)
+{
+    mod_webserver_printf(req, "<p>");
+    for (int i = 0; i < 8; ++i) {
+        mod_webserver_printf(req, "Log : %s<br>", LOG_BUFFER[(LOG_INDEX + i) % 8]);
+    }
+    mod_webserver_printf(req, "</p>");
 }

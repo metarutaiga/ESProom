@@ -10,9 +10,13 @@
 #ifndef _MOD_LOG_H_
 #define _MOD_LOG_H_
 
+#include <esp_http_server.h>
+
 extern unsigned char LOG_BUFFER[8][128];
 extern unsigned char LOG_INDEX;
 
 void mod_log(void);
+
+void mod_log_http_handler(httpd_req_t *req);
 
 #endif

@@ -12,11 +12,13 @@
 
 #include <driver/gpio.h>
 
-extern unsigned short PULSE_PER_HOUR[32][24];
+#include <esp_http_server.h>
+
 extern unsigned char AREA_NAME[16];
 extern int64_t CURRENT_TIME;
 extern int64_t PREVIOUS_TIME;
 
 void mod_watt_hour_meter(gpio_num_t gpio_num);
+void mod_watt_hour_meter_http_handler(httpd_req_t *req);
 
 #endif

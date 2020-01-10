@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 #include <esp_wifi.h>
@@ -17,6 +18,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 
+#include "mod_web_server.h"
 #include "mod_wifi.h"
 
 static const char * const TAG = "WIFI";
@@ -297,12 +299,38 @@ void mod_wifi_restart(void)
     wifi_restart_count++;
 }
 
-int mod_wifi_failed_count(void)
+void mod_wifi_http_handler(httpd_req_t *req)
 {
-    return wifi_failed_count;
-}
+    uint8_t protocol_bitmap = 0;
+    wifi_bandwidth_t bw = WIFI_BW_HT20;
+    uint8_t primary = 0;
+    wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+    wifi_country_t country;
 
-int mod_wifi_restart_count(void)
-{
-    return wifi_restart_count;
+    esp_wifi_get_protocol(ESP_IF_WIFI_STA, &protocol_bitmap);
+    esp_wifi_get_bandwidth(ESP_IF_WIFI_STA, &bw);
+    esp_wifi_get_channel(&primary, &second);
+    esp_wifi_get_country(&country);
+    mod_webserver_printf(req, "<p>");
+    mod_webserver_printf(req, "Protocol : 802.11%s%s%s<br>", 
+                         (protocol_bitmap & WIFI_PROTOCAL_11B) ? "b" : "",
+                         (protocol_bitmap & WIFI_PROTOCAL_11G) ? "g" : "",
+                         (protocol_bitmap & WIFI_PROTOCAL_11N) ? "n" : "");
+    mod_webserver_printf(req, "Bandwidth : %s<br>", 
+                         (bw == WIFI_BW_HT20) ? "HT20" :
+                         (bw == WIFI_BW_HT40) ? "HT40" : "Unknown");
+    mod_webserver_printf(req, "Channel : %d%s<br>", primary,
+                         (second == WIFI_SECOND_CHAN_NONE) ? "" :
+                         (second == WIFI_SECOND_CHAN_ABOVE) ? " (Above)" :
+                         (second == WIFI_SECOND_CHAN_BELOW) ? " (Below)" : " (Unknown)");
+    mod_webserver_printf(req, "Country Code : %s<br>", country.cc);
+    mod_webserver_printf(req, "Country Start Channel : %d<br>", country.schan);
+    mod_webserver_printf(req, "Country Totol Channel : %d<br>", country.nchan);
+    mod_webserver_printf(req, "Country Max TX Power : %d<br>", country.max_tx_power);
+    mod_webserver_printf(req, "Country Policy : %s<br>", 
+                         (country.policy == WIFI_COUNTRY_POLICY_AUTO) ? "Auto" :
+                         (country.policy == WIFI_COUNTRY_POLICY_MANUAL) ? "Manual" : "Unknown");
+    mod_webserver_printf(req, "Failed Count : %d<br>", wifi_failed_count);
+    mod_webserver_printf(req, "Restart Count : %d<br>", wifi_restart_count);
+    mod_webserver_printf(req, "</p>");
 }
