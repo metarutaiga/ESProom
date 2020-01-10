@@ -254,6 +254,12 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
 
+            msg_id = esp_mqtt_client_subscribe(client, MQTT_NAME, 0);
+            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+            msg_id = esp_mqtt_client_unsubscribe(client, MQTT_NAME);
+            ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+
             sprintf(topic, "%s/connected", MQTT_NAME);
             msg_id = esp_mqtt_client_publish(client, topic, "1", 0, 0, 1);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
@@ -265,12 +271,6 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             sprintf(topic, "%s/name", MQTT_NAME);
             msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_subscribe(client, MQTT_NAME, 0);
-            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-            msg_id = esp_mqtt_client_unsubscribe(client, MQTT_NAME);
-            ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
 
             MQTT_CLIENT = client;
             break;

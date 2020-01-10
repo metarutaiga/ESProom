@@ -54,7 +54,7 @@ static void mod_wifi_scan_result()
     wifi_ap_record_t *ap_list = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&ap_count, ap_list));	
 
-    char best_rssi = -128;
+    int8_t best_rssi = -128;
     unsigned char best_ssid = 0;
     ESP_LOGI(TAG, "======================================================================");
     ESP_LOGI(TAG, "             SSID             |    RSSI    |           AUTH           ");
@@ -88,7 +88,7 @@ static void mod_wifi_scan_result()
                 continue;
 
             if (strcmp((char*)ap_list[i].ssid, (char*)wifi_ssids[j]) == 0) {
-                if (best_rssi > ap_list[i].rssi) {
+                if (best_rssi < ap_list[i].rssi) {
                     best_rssi = ap_list[i].rssi;
                     best_ssid = j;
                 }
