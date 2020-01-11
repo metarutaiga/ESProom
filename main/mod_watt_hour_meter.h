@@ -14,6 +14,7 @@
 
 #include <esp_http_server.h>
 
+extern unsigned short PULSE_PER_HOUR[32][24];
 extern unsigned char AREA_NAME[16];
 extern int64_t CURRENT_TIME;
 extern int64_t PREVIOUS_TIME;

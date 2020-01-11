@@ -56,7 +56,6 @@ static void sntp(void *parameter)
 
         time_t now = 0;
         struct tm timeinfo = { 0 };
-        char strftime_buf[64];
 
         // update 'now' variable with current time
         time(&now);
@@ -67,8 +66,11 @@ static void sntp(void *parameter)
 
             obtain_time();
         } else {
+            char strftime_buf[64];
             strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
             ESP_LOGI(TAG, "The current date/time in Taipei is: %s", strftime_buf);
+            sntp_stop();
+
             break;
         }
     }

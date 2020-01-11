@@ -26,7 +26,6 @@ static esp_err_t home_get_handler(httpd_req_t *req)
 {
     time_t now = 0;
     struct tm timeinfo = { 0 };
-    esp_chip_info_t info;
 
     time(&now);
     localtime_r(&now, &timeinfo);
@@ -57,6 +56,7 @@ static esp_err_t home_get_handler(httpd_req_t *req)
     mod_wifi_http_handler(req);
 
     // Chip
+    esp_chip_info_t info;
     esp_chip_info(&info);
     mod_webserver_printf(req, "<p>");
     mod_webserver_printf(req, "IDF Version : %s<br>", esp_get_idf_version());
@@ -89,15 +89,15 @@ static esp_err_t restart_get_handler(httpd_req_t *req)
 }
 
 static httpd_uri_t home = {
-    .uri       = "/",
-    .method    = HTTP_GET,
-    .handler   = home_get_handler,
+    .uri        = "/",
+    .method     = HTTP_GET,
+    .handler    = home_get_handler,
 };
 
 static httpd_uri_t restart = {
-    .uri       = "/restart",
-    .method    = HTTP_GET,
-    .handler   = restart_get_handler,
+    .uri        = "/restart",
+    .method     = HTTP_GET,
+    .handler    = restart_get_handler,
 };
 
 httpd_handle_t mod_webserver_start(void)

@@ -31,9 +31,9 @@ static EventGroupHandle_t wifi_event_group;
    to the AP with an IP? */
 const int CONNECTED_BIT = BIT0;
 
-static int wifi_start = 0;
-static int wifi_connected = 0;
-static int wifi_restart = 0;
+static unsigned char wifi_start = 0;
+static unsigned char wifi_connected = 0;
+static unsigned char wifi_restart = 0;
 static int wifi_failed_count = 0;
 static int wifi_reconnected_count = 0;
 static int wifi_restart_count = 0;
@@ -200,16 +200,18 @@ static void mod_wifi_initialise()
         .ssid = 0,
         .bssid = 0,
         .channel = 0,
-        .show_hidden = 1,
+        .show_hidden = 0,
         .scan_type = WIFI_SCAN_TYPE_ACTIVE,
         .scan_time.active.min = 120,
         .scan_time.active.max = 150,
     };
 
-    const char* ssid = CONFIG_WIFI_SSID;
-    const char* password = CONFIG_WIFI_PASSWORD;
+    const char *ssid = CONFIG_WIFI_SSID;
+    const char *password = CONFIG_WIFI_PASSWORD;
 
     memset(wifi_ssids, 0, sizeof(wifi_ssids));
+    memset(wifi_passwords, 0, sizeof(wifi_passwords));
+
     for (unsigned char i = 0, j = 0, c = 1; c != 0; ssid++) {
         c = (*ssid);
         if (c == ';') {
@@ -219,8 +221,6 @@ static void mod_wifi_initialise()
         }
         wifi_ssids[i][j++] = c;
     }
-
-    memset(wifi_passwords, 0, sizeof(wifi_passwords));
     for (unsigned char i = 0, j = 0, c = 1; c != 0; password++) {
         c = (*password);
         if (c == ';') {
@@ -239,7 +239,6 @@ static void mod_wifi_initialise()
     ESP_ERROR_CHECK(esp_wifi_set_country(&country));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_STA, WIFI_BW_HT40));
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -307,10 +306,12 @@ void mod_wifi_http_handler(httpd_req_t *req)
     wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
     wifi_country_t country;
 
+    memset(&country, 0, sizeof(country));
     esp_wifi_get_protocol(ESP_IF_WIFI_STA, &protocol_bitmap);
     esp_wifi_get_bandwidth(ESP_IF_WIFI_STA, &bw);
     esp_wifi_get_channel(&primary, &second);
     esp_wifi_get_country(&country);
+
     mod_webserver_printf(req, "<p>");
     mod_webserver_printf(req, "Protocol : 802.11%s%s%s<br>", 
                          (protocol_bitmap & WIFI_PROTOCAL_11B) ? "b" : "",

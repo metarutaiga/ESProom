@@ -60,7 +60,7 @@ static int fatal_error = 0;
 /*http log*/
 static httpd_req_t *log_req = NULL;
 
-static const char *TAG = "OTA";
+static const char * const TAG = "OTA";
 
 /*read buffer by byte still delim ,return read bytes counts*/
 static int read_until(const char *buffer, char delim, int len)
@@ -79,7 +79,7 @@ static void ota_http_log()
         return;
 
     int log_index = (LOG_INDEX - 1) % 8;
-    char* log_buffer = (char*)LOG_BUFFER[log_index];
+    char *log_buffer = (char*)LOG_BUFFER[log_index];
     int len = strlen(log_buffer);
     if (len) {
         httpd_resp_send_chunk(log_req, log_buffer, len);
@@ -92,9 +92,6 @@ static bool connect_to_http_server()
     ESP_LOGI(TAG, "Server IP: %s Server Port:%s", CONFIG_OTA_SERVER_IP, CONFIG_OTA_SERVER_PORT);
     ota_http_log();
 
-    int  http_connect_flag = -1;
-    struct sockaddr_in sock_info;
-
     socket_id = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_id == -1) {
         ESP_LOGE(TAG, "Create socket failed!");
@@ -103,13 +100,14 @@ static bool connect_to_http_server()
     }
 
     // set connect info
+    struct sockaddr_in sock_info;
     memset(&sock_info, 0, sizeof(struct sockaddr_in));
     sock_info.sin_family = AF_INET;
     sock_info.sin_addr.s_addr = inet_addr(CONFIG_OTA_SERVER_IP);
     sock_info.sin_port = htons(atoi(CONFIG_OTA_SERVER_PORT));
 
     // connect to http server
-    http_connect_flag = connect(socket_id, (struct sockaddr *)&sock_info, sizeof(sock_info));
+    int http_connect_flag = connect(socket_id, (struct sockaddr *)&sock_info, sizeof(sock_info));
     if (http_connect_flag == -1) {
         ESP_LOGE(TAG, "Connect to server failed! errno=%d", errno);
         ota_http_log();
@@ -127,8 +125,10 @@ static void task_fatal_error()
 {
     ESP_LOGE(TAG, "Exiting task due to fatal error...");
     ota_http_log();
+
     close(socket_id);
     fatal_error = 1;
+
     vTaskDelete(NULL);
 }
 
@@ -280,12 +280,7 @@ static void ota_task(void *parameter)
 {
     httpd_req_t *req = (httpd_req_t *)parameter;
 
-    esp_err_t err;
-    /* update handle : set by esp_ota_begin(), must be freed via esp_ota_end() */
-    esp_ota_handle_t update_handle = 0 ;
-    const esp_partition_t *update_partition = NULL;
-
-    const char* html_header = "<!DOCTYPE html>"
+    const char *html_header = "<!DOCTYPE html>"
                               "<html>"
                               "<body>";
     httpd_resp_send_chunk(req, html_header, strlen(html_header));
@@ -345,13 +340,15 @@ static void ota_task(void *parameter)
         ota_http_log();
     }
 
-    update_partition = esp_ota_get_next_update_partition(NULL);
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
     ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
              update_partition->subtype, update_partition->address);
     ota_http_log();
     assert(update_partition != NULL);
 
-    err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
+    /* update handle : set by esp_ota_begin(), must be freed via esp_ota_end() */
+    esp_ota_handle_t update_handle = 0 ;
+    esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_begin failed, error=%d", err);
         ota_http_log();
@@ -449,9 +446,9 @@ static esp_err_t ota_get_handler(httpd_req_t *req)
 }
 
 httpd_uri_t ota = {
-    .uri       = "/ota",
-    .method    = HTTP_GET,
-    .handler   = ota_get_handler,
+    .uri        = "/ota",
+    .method     = HTTP_GET,
+    .handler    = ota_get_handler,
 };
 
 void mod_ota(httpd_handle_t server)
