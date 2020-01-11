@@ -84,19 +84,23 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                     memcpy(data, event->data, event->data_len);
                     data[event->data_len] = 0;
 
-                    time_t now;
-                    struct tm timeinfo;
-
-                    time(&now);
-                    localtime_r(&now, &timeinfo);
-
                     char *json_day = strstr(data, "\"day\":");
                     char *json_values = strstr(data, "\"values\":[");
                     if (json_day && json_values) {
+                        json_values += sizeof("\"values\":[") - 1;
+                        json_day += sizeof("\"day\":") - 1;
+
                         char *token = NULL;
-                        char *step = strtok_r(json_values + sizeof("\"values\":[") - 1, ",", &token);
+                        char *step = strtok_r(json_values, ",", &token);
                         if (step) {
-                            int day = atoi(json_day + sizeof("\"day\":") - 1);
+
+                            time_t now = 0;
+                            struct tm timeinfo = { 0 };
+
+                            time(&now);
+                            localtime_r(&now, &timeinfo);
+
+                            int day = atoi(json_day);
                             if (day == timeinfo.tm_mday) {
                                 for (int i = 0; i < 24; ++i) {
                                     PULSE_PER_HOUR[day][i] += atoi(step);
@@ -122,47 +126,47 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
 void mod_mqtt_publish(void)
 {
-    time_t now;
-    struct tm timeinfo;
+    if (MQTT_CLIENT == 0 || MQTT_INIT == 0)
+        return;
+
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
 
     time(&now);
     localtime_r(&now, &timeinfo);
 
-    if (MQTT_CLIENT && MQTT_INIT) {
-        char data[256];
-
-        sprintf(data, "{"
-                      "\"day\":%d,"
-                      "\"power\":%.2f,"
-                      "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]"
-                      "}", timeinfo.tm_mday,
-                           (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
-                           PULSE_PER_HOUR[timeinfo.tm_mday][0],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][1],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][2],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][3],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][4],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][5],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][6],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][7],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][8],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][9],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][10],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][11],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][12],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][13],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][14],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][15],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][16],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][17],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][18],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][19],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][20],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][21],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][22],
-                           PULSE_PER_HOUR[timeinfo.tm_mday][23]);
-        esp_mqtt_client_publish(MQTT_CLIENT, MQTT_NAME, data, 0, 0, 1);
-    }
+    char data[256];
+    sprintf(data, "{"
+                  "\"day\":%d,"
+                  "\"power\":%.2f,"
+                  "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]"
+                  "}", timeinfo.tm_mday,
+                       (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
+                       PULSE_PER_HOUR[timeinfo.tm_mday][0],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][1],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][2],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][3],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][4],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][5],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][6],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][7],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][8],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][9],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][10],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][11],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][12],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][13],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][14],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][15],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][16],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][17],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][18],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][19],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][20],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][21],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][22],
+                       PULSE_PER_HOUR[timeinfo.tm_mday][23]);
+    esp_mqtt_client_publish(MQTT_CLIENT, MQTT_NAME, data, 0, 0, 1);
 }
 
 void mod_mqtt(void)

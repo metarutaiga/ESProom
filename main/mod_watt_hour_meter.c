@@ -175,11 +175,12 @@ static void pulse(void *parameter)
     PREVIOUS_TIME = CURRENT_TIME;
     CURRENT_TIME = pulse_time;
 
-    time_t now;
-    struct tm timeinfo;
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
 
     time(&now);
     localtime_r(&now, &timeinfo);
+
     if (timeinfo.tm_year < (2016 - 1900))
         return;
 

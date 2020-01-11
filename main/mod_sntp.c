@@ -34,16 +34,22 @@ static void obtain_time(void)
     initialize_sntp();
 
     // wait for time to be set
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
-    int retry = 0;
     const int retry_count = 10;
+    for (int retry = 1; retry <= retry_count; ++retry) {
 
-    while (timeinfo.tm_year < (2016 - 1900) && ++retry < retry_count) {
-        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        time_t now = 0;
+        struct tm timeinfo = { 0 };
+
         time(&now);
         localtime_r(&now, &timeinfo);
+
+        if (timeinfo.tm_year < (2016 - 1900)) {
+            ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+            continue;
+        }
+
+        break;
     }
 }
 
