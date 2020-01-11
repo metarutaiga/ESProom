@@ -2,6 +2,9 @@ build/
 *.o
 *.pyc
 
+sdkconfig
+sdkconfig.old
+
 # eclipse setting
 .settings
 .cproject
