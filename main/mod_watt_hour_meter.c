@@ -332,7 +332,12 @@ void mod_watt_hour_meter_http_handler(httpd_req_t *req)
                                                      PULSE_PER_HOUR[day][hour + 3],
                                                      PULSE_PER_HOUR[day][hour + 4],
                                                      PULSE_PER_HOUR[day][hour + 5]);
-            total += PULSE_PER_HOUR[day][hour];
+            total += PULSE_PER_HOUR[day][hour + 0] +
+                     PULSE_PER_HOUR[day][hour + 1] +
+                     PULSE_PER_HOUR[day][hour + 2] +
+                     PULSE_PER_HOUR[day][hour + 3] +
+                     PULSE_PER_HOUR[day][hour + 4] +
+                     PULSE_PER_HOUR[day][hour + 5];
         }
         mod_webserver_printf(req, "<th>%d</th>", total);
         mod_webserver_printf(req, "<th>%.2f</th>", total / (float)CONFIG_IMP_KWH);
