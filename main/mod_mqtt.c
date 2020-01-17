@@ -17,6 +17,7 @@
 #include <esp_wifi.h>
 #include <mqtt_client.h>
 
+#include "mod_bme680.h"
 #include "mod_watt_hour_meter.h"
 #include "mod_mqtt.h"
 
@@ -135,37 +136,81 @@ void mod_mqtt_publish(void)
     time(&now);
     localtime_r(&now, &timeinfo);
 
-    char data[256];
-    sprintf(data, "{"
-                  "\"day\":%d,"
-                  "\"power\":%.2f,"
-                  "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]"
-                  "}", timeinfo.tm_mday,
-                       (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
-                       PULSE_PER_HOUR[timeinfo.tm_mday][0],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][1],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][2],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][3],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][4],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][5],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][6],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][7],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][8],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][9],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][10],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][11],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][12],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][13],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][14],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][15],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][16],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][17],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][18],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][19],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][20],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][21],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][22],
-                       PULSE_PER_HOUR[timeinfo.tm_mday][23]);
+    char data[512];
+    if (BME680_GAS_RESISTANCE == 0.0f) {
+        sprintf(data, "{"
+                      "\"day\":%d,"
+                      "\"power\":%.2f,"
+                      "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]"
+                      "}", timeinfo.tm_mday,
+                           (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
+                           PULSE_PER_HOUR[timeinfo.tm_mday][0],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][1],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][2],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][3],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][4],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][5],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][6],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][7],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][8],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][9],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][10],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][11],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][12],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][13],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][14],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][15],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][16],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][17],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][18],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][19],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][20],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][21],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][22],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][23]);
+    }
+    else {
+        sprintf(data, "{"
+                      "\"day\":%d,"
+                      "\"power\":%.2f,"
+                      "\"values\":[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d],"
+                      "\"temperature\":%.2f,"
+                      "\"humidity\":%.2f,"
+                      "\"pressure\":%.2f,"
+                      "\"gas_resistance\":%.2f,"
+                      "\"air_quality\":%.2f"
+                      "}", timeinfo.tm_mday,
+                           (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
+                           PULSE_PER_HOUR[timeinfo.tm_mday][0],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][1],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][2],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][3],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][4],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][5],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][6],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][7],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][8],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][9],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][10],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][11],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][12],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][13],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][14],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][15],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][16],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][17],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][18],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][19],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][20],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][21],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][22],
+                           PULSE_PER_HOUR[timeinfo.tm_mday][23],
+                           BME680_TEMPERATURE,
+                           BME680_HUMIDITY,
+                           BME680_PRESSURE,
+                           BME680_GAS_RESISTANCE,
+                           BME680_AIR_QUALITY);
+    }
     esp_mqtt_client_publish(MQTT_CLIENT, MQTT_NAME, data, 0, 0, 1);
 }
 

@@ -61,7 +61,7 @@ static const char * const TAG = "WATT-HOUR METER";
 
 static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
-    switch(evt->event_id) {
+    switch (evt->event_id) {
         case HTTP_EVENT_ERROR:
             ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
             break;
@@ -185,7 +185,7 @@ static void pulse(void *parameter)
         return;
 
     PULSE_PER_HOUR[timeinfo.tm_mday][timeinfo.tm_hour]++;
-    xTaskCreate(&pulse_log, "pulse_log", 2048, NULL, 5, NULL);
+    xTaskCreate(&pulse_log, "pulse_log", 4096, NULL, 5, NULL);
 
     if (last_hour == timeinfo.tm_hour)
         return;

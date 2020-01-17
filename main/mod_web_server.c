@@ -14,6 +14,7 @@
 #include <esp_log.h>
 #include <esp_spi_flash.h>
 
+#include "mod_bme680.h"
 #include "mod_log.h"
 #include "mod_watt_hour_meter.h"
 #include "mod_web_server.h"
@@ -52,6 +53,7 @@ static esp_err_t home_get_handler(httpd_req_t *req)
 
     // Modules
     mod_watt_hour_meter_http_handler(req);
+    mod_bme680_http_handler(req);
     mod_log_http_handler(req);
     mod_wifi_http_handler(req);
 
@@ -131,8 +133,8 @@ void mod_webserver_printf(httpd_req_t *req, const char* format, ...)
 
     va_list args;
     va_start(args, format);
-    int len = vsnprintf(buffer, 128, format, args);
+    vsnprintf(buffer, 128, format, args);
     va_end(args);
 
-    httpd_resp_send_chunk(req, buffer, len);
+    httpd_resp_send_chunk(req, buffer, strlen(buffer));
 }

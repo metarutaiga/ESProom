@@ -14,6 +14,7 @@
 
 #include <nvs_flash.h>
 
+#include "mod_bme680.h"
 #include "mod_log.h"
 #include "mod_mqtt.h"
 #include "mod_ota.h"
@@ -42,6 +43,7 @@ void app_main()
     mod_sntp();
     mod_watt_hour_meter(GPIO_NUM_2);
     mod_mqtt();
+    mod_bme680(GPIO_NUM_3, GPIO_NUM_0);
 
     httpd_handle_t server = mod_webserver_start();
     mod_ota(server);
