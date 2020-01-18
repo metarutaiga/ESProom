@@ -37,7 +37,8 @@ static esp_err_t home_get_handler(httpd_req_t *req)
     mod_webserver_printf(req, "<head>");
     mod_webserver_printf(req, "<title>%s : Watt-Hour Meter</title>", AREA_NAME);
     mod_webserver_printf(req, "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.0/Chart.min.js\"></script>");
-    mod_webserver_printf(req, "<meta http-equiv=\"refresh\" content=\"60\"/>");
+    mod_webserver_printf(req, "<meta http-equiv=\"refresh\" content=\"60\">");
+    mod_webserver_printf(req, "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">");
     mod_webserver_printf(req, "</head>");
     mod_webserver_printf(req, "<body>");
 

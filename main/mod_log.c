@@ -53,7 +53,8 @@ void mod_log_http_handler(httpd_req_t *req)
 {
     mod_webserver_printf(req, "<p>");
     for (int i = 0; i < 8; ++i) {
-        mod_webserver_printf(req, "Log : %s<br>", LOG_BUFFER[(LOG_INDEX + i) % 8]);
+        mod_webserver_printf(req, "Log : %s", LOG_BUFFER[(LOG_INDEX + i) % 8]);
+        mod_webserver_printf(req, "<br>");
     }
     mod_webserver_printf(req, "</p>");
 }

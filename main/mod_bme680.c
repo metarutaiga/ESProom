@@ -24,6 +24,10 @@ float BME680_PRESSURE;
 float BME680_GAS_RESISTANCE;
 float BME680_AIR_QUALITY;
 
+static float BME680_GAS_BURN_IN[50];
+static unsigned char BME680_GAS_BURN_IN_INDEX;
+static float BME680_GAS_BASELINE;
+
 static const char * const TAG = "BME680";
 
 static void mod_bme680_task(void *parameters)
@@ -55,25 +59,70 @@ static void mod_bme680_task(void *parameters)
                 BME680_PRESSURE = values.pressure;
                 BME680_GAS_RESISTANCE = values.gas_resistance;
 
-                float hum_reference = 40.0f;
-                float humidity_score;
-                if (values.humidity >= 38.0f && values.humidity <= 42.0f)
-                    humidity_score = 0.25f * 100.0f;
-                else if (values.humidity < 38.0f)
-                    humidity_score = 0.25f / hum_reference * values.humidity * 100.0f;
+                // https://github.com/pimoroni/bme680-python/blob/master/examples/indoor-air-quality.py
+                if (BME680_GAS_BURN_IN[0] == 0.0f)
+                {
+                    for (unsigned char i = 0; i < 50; ++i)
+                        BME680_GAS_BURN_IN[i] = values.gas_resistance;
+                    BME680_GAS_BASELINE = values.gas_resistance;
+                }
+
+                unsigned char index = BME680_GAS_BURN_IN_INDEX++;
+                if (BME680_GAS_BURN_IN_INDEX >= 50)
+                    BME680_GAS_BURN_IN_INDEX = 0;
+                BME680_GAS_BASELINE -= BME680_GAS_BURN_IN[index] / 50.0f;
+                BME680_GAS_BURN_IN[index] = values.gas_resistance;
+                BME680_GAS_BASELINE += BME680_GAS_BURN_IN[index] / 50.0f;
+
+                // Collect gas resistance burn-in values, then use the average
+                // of the last 50 values to set the upper limit for calculating
+                // gas_baseline.
+                float gas_baseline = BME680_GAS_BASELINE;
+
+                // Set the humidity baseline to 40%, an optimal indoor humidity.
+                float hum_baseline = 40.0f;
+
+                // This sets the balance between humidity and gas reading in the
+                // calculation of air_quality_score (25:75, humidity:gas)
+                float hum_weighting = 0.25f;
+
+                float gas = values.gas_resistance;
+                float gas_offset = gas_baseline - gas;
+
+                float hum = values.humidity;
+                float hum_offset = hum - hum_baseline;
+
+                // Calculate hum_score as the distance from the hum_baseline.
+                float hum_score;
+                if (hum_offset > 0.0f)
+                {
+                    hum_score = (100.0f - hum_baseline - hum_offset);
+                    hum_score /= (100.0f - hum_baseline);
+                    hum_score *= (hum_weighting * 100.0f);
+                }
                 else
-                    humidity_score = ((-0.25f / (100.0f - hum_reference) * values.humidity) + 0.416666f) * 100.0f;
+                {
+                    hum_score = (hum_baseline + hum_offset);
+                    hum_score /= hum_baseline;
+                    hum_score *= (hum_weighting * 100.0f);
+                }
 
-                float gas_reference = 2500.0f;
-                float gas_lower_limit = 10000.0f;
-                float gas_upper_limit = 300000.0f;
-                float gas_score = (0.75f / (gas_upper_limit - gas_lower_limit) * gas_reference - (gas_lower_limit * (0.75f / (gas_upper_limit - gas_lower_limit)))) * 100.0f;
-                if (gas_score > 75.0f)
-                    gas_score = 75.0f;
-                else if (gas_score < 0.0f)
-                    gas_score = 0.0f;
+                // Calculate gas_score as the distance from the gas_baseline.
+                float gas_score;
+                if (gas_offset > 0.0f)
+                {
+                    gas_score = (gas / gas_baseline);
+                    gas_score *= (100.0f - (hum_weighting * 100.0f));
+                }
+                else
+                {
+                    gas_score = 100.0f - (hum_weighting * 100.0f);
+                }
 
-                BME680_AIR_QUALITY = humidity_score + gas_score;
+                // Calculate air_quality_score.
+                float air_quality_score = hum_score + gas_score;
+
+                BME680_AIR_QUALITY = air_quality_score;
 #if 0
                 ESP_LOGI(TAG, "%.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
                          values.temperature, values.humidity,
@@ -107,8 +156,8 @@ void mod_bme680(gpio_num_t scl, gpio_num_t sda)
         bme680_set_heater_profile(sensor, 0, 320, 150);
         bme680_use_heater_profile(sensor, 0);
 
-        // Set ambient temperature to 10 degree Celsius
-        bme680_set_ambient_temperature(sensor, 10);
+        // Set ambient temperature to 25 degree Celsius
+        bme680_set_ambient_temperature(sensor, 25);
             
         /** -- TASK CREATION PART --- */
 

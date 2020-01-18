@@ -64,11 +64,11 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
             sprintf(topic, "%s/build", MQTT_NAME);
-            msg_id = esp_mqtt_client_publish(client, topic, __DATE__ " " __TIME__, 0, 0, 0);
+            msg_id = esp_mqtt_client_publish(client, topic, __DATE__ " " __TIME__, 0, 0, 1);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
             sprintf(topic, "%s/name", MQTT_NAME);
-            msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 0);
+            msg_id = esp_mqtt_client_publish(client, topic, (char*)AREA_NAME, 0, 0, 1);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
             MQTT_INIT = 1;
@@ -216,6 +216,10 @@ void mod_mqtt_publish(void)
 
 void mod_mqtt(void)
 {
+    const char* hostname = "";
+    tcpip_adapter_get_hostname(TCPIP_ADAPTER_IF_STA, &hostname);
+    strcpy(MQTT_NAME, hostname);
+
     char topic[64];
     sprintf(topic, "%s/connected", MQTT_NAME);
 
@@ -229,8 +233,4 @@ void mod_mqtt(void)
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);
-
-    const char* hostname = "";
-    tcpip_adapter_get_hostname(TCPIP_ADAPTER_IF_STA, &hostname);
-    strcpy(MQTT_NAME, hostname);
 }

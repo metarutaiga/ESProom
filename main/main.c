@@ -40,10 +40,11 @@ void app_main()
 
     mod_log();
     mod_wifi();
+    mod_wifi_wait_connected();
     mod_sntp();
     mod_watt_hour_meter(GPIO_NUM_2);
     mod_mqtt();
-    mod_bme680(GPIO_NUM_3, GPIO_NUM_0);
+    mod_bme680(GPIO_NUM_0, GPIO_NUM_3);
 
     httpd_handle_t server = mod_webserver_start();
     mod_ota(server);
