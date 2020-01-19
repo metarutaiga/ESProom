@@ -98,8 +98,20 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
                             time_t now = 0;
                             struct tm timeinfo = { 0 };
 
-                            time(&now);
-                            localtime_r(&now, &timeinfo);
+                            // wait for time to be set
+                            const int retry_count = 10;
+                            for (int retry = 1; retry <= retry_count; ++retry) {
+
+                                time(&now);
+                                localtime_r(&now, &timeinfo);
+
+                                if (timeinfo.tm_year < (2016 - 1900)) {
+                                    vTaskDelay(2000 / portTICK_PERIOD_MS);
+                                    continue;
+                                }
+
+                                break;
+                            }
 
                             int day = atoi(json_day);
                             if (day == timeinfo.tm_mday) {

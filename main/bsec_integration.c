@@ -193,28 +193,6 @@ return_values_init bsec_iot_init(float sample_rate, float temperature_offset, bm
         return ret;
     }
     
-    /* Load library config, if available */
-    bsec_config_len = config_load(bsec_config, sizeof(bsec_config));
-    if (bsec_config_len != 0)
-    {       
-        ret.bsec_status = bsec_set_configuration(bsec_config, bsec_config_len, work_buffer, sizeof(work_buffer));     
-        if (ret.bsec_status != BSEC_OK)
-        {
-            return ret;
-        }
-    }
-    
-    /* Load previous library state, if available */
-    bsec_state_len = state_load(bsec_state, sizeof(bsec_state));
-    if (bsec_state_len != 0)
-    {       
-        ret.bsec_status = bsec_set_state(bsec_state, bsec_state_len, work_buffer, sizeof(work_buffer));     
-        if (ret.bsec_status != BSEC_OK)
-        {
-            return ret;
-        }
-    }
-    
     /* Set temperature offset */
     bme680_temperature_offset_g = temperature_offset;
     
@@ -536,19 +514,7 @@ void bsec_iot_loop(sleep_fct sleep, get_timestamp_us_fct get_timestamp_us, outpu
         
         /* Increment sample counter */
         n_samples++;
-        
-        /* Retrieve and store state if the passed save_intvl */
-        if (n_samples >= save_intvl)
-        {
-            bsec_status = bsec_get_state(0, bsec_state, sizeof(bsec_state), work_buffer, sizeof(work_buffer), &bsec_state_len);
-            if (bsec_status == BSEC_OK)
-            {
-                state_save(bsec_state, bsec_state_len);
-            }
-            n_samples = 0;
-        }
-        
-        
+                
         /* Compute how long we can sleep until we need to call bsec_sensor_control() next */
         /* Time_stamp is converted from microseconds to nanoseconds first and then the difference to milliseconds */
         time_stamp_interval_ms = (sensor_settings.next_call - get_timestamp_us() * 1000) / 1000000;
