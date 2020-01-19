@@ -137,7 +137,7 @@ void mod_mqtt_publish(void)
     localtime_r(&now, &timeinfo);
 
     char data[512];
-    if (BME680_GAS_RESISTANCE == 0.0f) {
+    if (BME680_TIMESTAMP == 0) {
         sprintf(data, "{"
                       "\"day\":%d,"
                       "\"power\":%.2f,"
@@ -178,7 +178,9 @@ void mod_mqtt_publish(void)
                       "\"humidity\":%.2f,"
                       "\"pressure\":%.2f,"
                       "\"gas_resistance\":%.2f,"
-                      "\"air_quality\":%.2f"
+                      "\"air_quality\":%.2f,"
+                      "\"co2\":%.2f,"
+                      "\"breath_voc\":%.2f"
                       "}", timeinfo.tm_mday,
                            (60.0 * 60.0 * 1000.0 * 1000.0 * 1000.0) / (CURRENT_TIME - PREVIOUS_TIME) / CONFIG_IMP_KWH,
                            PULSE_PER_HOUR[timeinfo.tm_mday][0],
@@ -209,7 +211,9 @@ void mod_mqtt_publish(void)
                            BME680_HUMIDITY,
                            BME680_PRESSURE,
                            BME680_GAS_RESISTANCE,
-                           BME680_AIR_QUALITY);
+                           BME680_STATIC_IAQ,
+                           BME680_CO2_EQUIVALENT,
+                           BME680_BREATH_VOC_EQUIVALENT);
     }
     esp_mqtt_client_publish(MQTT_CLIENT, MQTT_NAME, data, 0, 0, 1);
 }

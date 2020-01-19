@@ -14,11 +14,18 @@
 
 #include <esp_http_server.h>
 
+extern int64_t BME680_TIMESTAMP;
+extern float BME680_IAQ;
+extern uint8_t BME680_IAQ_ACCURACY;
 extern float BME680_TEMPERATURE;
 extern float BME680_HUMIDITY;
 extern float BME680_PRESSURE;
+extern float BME680_RAW_TEMPERATURE;
+extern float BME680_RAW_HUMIDITY;
 extern float BME680_GAS_RESISTANCE;
-extern float BME680_AIR_QUALITY;
+extern float BME680_STATIC_IAQ;
+extern float BME680_CO2_EQUIVALENT;
+extern float BME680_BREATH_VOC_EQUIVALENT;
 
 void mod_bme680(gpio_num_t scl, gpio_num_t sda);
 
