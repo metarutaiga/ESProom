@@ -23,15 +23,24 @@
 int64_t BME680_TIMESTAMP;
 float BME680_IAQ;
 uint8_t BME680_IAQ_ACCURACY;
-float BME680_TEMPERATURE;
-float BME680_HUMIDITY;
-float BME680_PRESSURE;
-float BME680_RAW_TEMPERATURE;
-float BME680_RAW_HUMIDITY;
-float BME680_GAS_RESISTANCE;
 float BME680_STATIC_IAQ;
+uint8_t BME680_STATIC_IAQ_ACCURACY;
 float BME680_CO2_EQUIVALENT;
+uint8_t BME680_CO2_EQUIVALENT_ACCURACY;
 float BME680_BREATH_VOC_EQUIVALENT;
+uint8_t BME680_BREATH_VOC_EQUIVALENT_ACCURACY;
+float BME680_RAW_TEMPERATURE;
+float BME680_RAW_PRESSURE;
+float BME680_RAW_HUMIDITY;
+float BME680_RAW_GAS;
+float BME680_STABILIZATION_STATUS;
+float BME680_RUN_IN_STATUS;
+float BME680_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
+float BME680_SENSOR_HEAT_COMPENSATED_HUMIDITY;
+float BME680_COMPENSATED_GAS;
+uint8_t BME680_COMPENSATED_GAS_ACCURACY;
+float BME680_GAS_PERCENTAGE;
+uint8_t BME680_GAS_PERCENTAGE_ACCURACY;
 
 static const char * const TAG = "BME680";
 
@@ -96,22 +105,33 @@ static int64_t get_timestamp_us()
     return esp_timer_get_time();
 }
 
-static void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temperature, float humidity,
-    float pressure, float raw_temperature, float raw_humidity, float gas, bsec_library_return_t bsec_status,
-    float static_iaq, float co2_equivalent, float breath_voc_equivalent)
+static void output_ready(int64_t timestamp, bsec_library_return_t bsec_status, float iaq, uint8_t iaq_accuracy,
+    float static_iaq, uint8_t static_iaq_accuracy, float co2_equivalent, uint8_t co2_accuracy,
+    float breath_voc_equivalent, uint8_t breath_voc_accuracy, float raw_temp, float raw_pressure, float raw_humidity,
+    float raw_gas, float stable_status, float run_in_status, float temp, float humidity, float comp_gas_value,
+    uint8_t comp_gas_accuracy, float gas_percentage, uint8_t gas_percentage_acccuracy)
 {
     BME680_TIMESTAMP = timestamp;
     BME680_IAQ = iaq;
     BME680_IAQ_ACCURACY = iaq_accuracy;
-    BME680_TEMPERATURE = temperature;
-    BME680_HUMIDITY = humidity;
-    BME680_PRESSURE = pressure / 100.0f;
-    BME680_RAW_TEMPERATURE = raw_temperature;
-    BME680_RAW_HUMIDITY = raw_humidity;
-    BME680_GAS_RESISTANCE = gas;
     BME680_STATIC_IAQ = static_iaq;
+    BME680_STATIC_IAQ_ACCURACY = static_iaq_accuracy;
     BME680_CO2_EQUIVALENT = co2_equivalent;
+    BME680_CO2_EQUIVALENT_ACCURACY = co2_accuracy;
     BME680_BREATH_VOC_EQUIVALENT = breath_voc_equivalent;
+    BME680_BREATH_VOC_EQUIVALENT_ACCURACY = breath_voc_accuracy;
+    BME680_RAW_TEMPERATURE = raw_temp;
+    BME680_RAW_PRESSURE = raw_pressure / 100.0f;
+    BME680_RAW_HUMIDITY = raw_humidity;
+    BME680_RAW_GAS = raw_gas;
+    BME680_STABILIZATION_STATUS = stable_status;
+    BME680_RUN_IN_STATUS = run_in_status;
+    BME680_SENSOR_HEAT_COMPENSATED_TEMPERATURE = temp;
+    BME680_SENSOR_HEAT_COMPENSATED_HUMIDITY = humidity;
+    BME680_COMPENSATED_GAS = comp_gas_value;
+    BME680_COMPENSATED_GAS_ACCURACY = comp_gas_accuracy;
+    BME680_GAS_PERCENTAGE = gas_percentage;
+    BME680_GAS_PERCENTAGE_ACCURACY = gas_percentage_acccuracy;
 }
 
 static uint32_t state_load(uint8_t *state_buffer, uint32_t n_buffer)
@@ -170,16 +190,26 @@ void mod_bme680_http_handler(httpd_req_t *req)
     mod_webserver_printf(req, "<p>");
     mod_webserver_printf(req, "BSEC version: %d.%d.%d.%d<br>", version.major, version.minor, version.major_bugfix, version.minor_bugfix);
     mod_webserver_printf(req, "Timestamp : %u ms<br>", BME680_TIMESTAMP / 1000000);
+    mod_webserver_printf(req, "Stabilization Status : %s<br>", BME680_STABILIZATION_STATUS == 0.0f ? "ongoing" : "finish");
+    mod_webserver_printf(req, "Run In Status : %s<br>", BME680_RUN_IN_STATUS == 0.0f ? "ongoing" : "finish");
     mod_webserver_printf(req, "Indoor Air Quality : %.2f<br>", BME680_IAQ);
     mod_webserver_printf(req, "Indoor Air Quality Accuracy : %u<br>", BME680_IAQ_ACCURACY);
-    mod_webserver_printf(req, "Temperature : %.2f °C<br>", BME680_TEMPERATURE);
-    mod_webserver_printf(req, "Humidity : %.2f %%<br>", BME680_HUMIDITY);
-    mod_webserver_printf(req, "Pressure : %.2f hPa<br>", BME680_PRESSURE);
-    mod_webserver_printf(req, "Raw Temperature : %.2f °C<br>", BME680_RAW_TEMPERATURE);
-    mod_webserver_printf(req, "Raw Humidity : %.2f %%<br>", BME680_RAW_HUMIDITY);
-    mod_webserver_printf(req, "Gas Resistance : %.2f Ohm<br>", BME680_GAS_RESISTANCE);
     mod_webserver_printf(req, "Static Indoor Air Quality : %.2f<br>", BME680_STATIC_IAQ);
+    mod_webserver_printf(req, "Static Indoor Air Quality Accuracy : %u<br>", BME680_STATIC_IAQ_ACCURACY);
     mod_webserver_printf(req, "CO2 Equivalent : %.2f<br>", BME680_CO2_EQUIVALENT);
+    mod_webserver_printf(req, "CO2 Equivalent Accuracy : %u<br>", BME680_CO2_EQUIVALENT_ACCURACY);
     mod_webserver_printf(req, "Breath VOC Equivalent : %.2f<br>", BME680_BREATH_VOC_EQUIVALENT);
+    mod_webserver_printf(req, "Breath VOC Equivalent Accuracy : %u<br>", BME680_BREATH_VOC_EQUIVALENT_ACCURACY);
+    mod_webserver_printf(req, "Raw Temperature : %.2f °C<br>", BME680_RAW_TEMPERATURE);
+    mod_webserver_printf(req, "Raw Pressure : %.2f hPa<br>", BME680_RAW_PRESSURE);
+    mod_webserver_printf(req, "Raw Humidity : %.2f %%<br>", BME680_RAW_HUMIDITY);
+    mod_webserver_printf(req, "Raw Gas Resistance : %.2f Ohm<br>", BME680_RAW_GAS);
+    mod_webserver_printf(req, "Temperature : %.2f °C<br>", BME680_SENSOR_HEAT_COMPENSATED_TEMPERATURE);
+    mod_webserver_printf(req, "Humidity : %.2f %%<br>", BME680_SENSOR_HEAT_COMPENSATED_HUMIDITY);
+    mod_webserver_printf(req, "Gas Compenstaed : %.2f Ohm<br>", BME680_COMPENSATED_GAS);
+    mod_webserver_printf(req, "Gas Compenstaed Accuracy : %u<br>", BME680_COMPENSATED_GAS_ACCURACY);
+    mod_webserver_printf(req, "Gas Percentage : %.2f %%<br>", BME680_GAS_PERCENTAGE);
+    mod_webserver_printf(req, "Gas Percentage Accuracy : %u<br>", BME680_GAS_PERCENTAGE_ACCURACY);
+
     mod_webserver_printf(req, "</p>");
 }

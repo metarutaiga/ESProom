@@ -85,7 +85,7 @@ extern "C"
 #include <stddef.h>
 
 #define BSEC_MAX_WORKBUFFER_SIZE     (2048)    /*!< Maximum size (in bytes) of the work buffer */
-#define BSEC_MAX_PHYSICAL_SENSOR     (10)         /*!< Number of physical sensors that need allocated space before calling bsec_update_subscription() */
+#define BSEC_MAX_PHYSICAL_SENSOR     (14)         /*!< Number of physical sensors that need allocated space before calling bsec_update_subscription() */
 #define BSEC_MAX_PROPERTY_BLOB_SIZE  (454)     /*!< Maximum size (in bytes) of the data blobs returned by bsec_get_configuration() */
 #define BSEC_MAX_STATE_BLOB_SIZE     (139)        /*!< Maximum size (in bytes) of the data blobs returned by bsec_get_state()*/
 #define BSEC_SAMPLE_RATE_DISABLED    (65535.0f)      /*!< Sample rate of a disabled sensor */
@@ -280,8 +280,8 @@ typedef enum
      */
     BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY = 15,     
 
-    BSEC_OUTPUT_COMPENSATED_GAS = 18,         			    /*!< Reserved internal debug output */ 	
-	BSEC_OUTPUT_GAS_PERCENTAGE = 21                         /*!< percentage of min and max filtered gas value [%] */
+    BSEC_OUTPUT_COMPENSATED_GAS = 18,         	            /*!< Reserved internal debug output */ 	
+    BSEC_OUTPUT_GAS_PERCENTAGE = 21                         /*!< percentage of min and max filtered gas value [%] */
 } bsec_virtual_sensor_t;
 
 /*!
